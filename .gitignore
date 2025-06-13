@@ -46,13 +46,6 @@ knowledge/**
 !knowledge/default/
 !knowledge/default/**
 
-# Handle instruments directory
-instruments/**
-!instruments/**/
-# Explicitly allow the default folder in instruments
-!instruments/default/
-!instruments/default/**
-
 # Global rule to include .gitkeep files anywhere
 !**/.gitkeep
 agent_history.gif
