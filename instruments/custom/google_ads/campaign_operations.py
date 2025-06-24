@@ -30,16 +30,17 @@ def install_dependencies():
 def load_config():
     """Load Google Ads API configuration."""
     config_paths = [
+        "/a0/google-ads.yaml",
         "google-ads.yaml",
         os.path.expanduser("~/google-ads.yaml"),
         "/tmp/google-ads.yaml"
     ]
-    
+
     for config_file in config_paths:
         if os.path.exists(config_file):
             print(f"✅ Found config file: {config_file}")
             return True, config_file
-    
+
     print(f"❌ Configuration file not found in any of these locations:")
     for path in config_paths:
         print(f"   - {path}")
