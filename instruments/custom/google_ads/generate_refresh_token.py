@@ -8,6 +8,27 @@ It reads the client credentials from google-ads.yaml and updates the file with t
 
 import os
 import sys
+import subprocess
+
+# Check and install dependencies
+def install_dependencies():
+    """Install required packages if not available."""
+    required_packages = [
+        'PyYAML',
+        'google-auth-oauthlib',
+        'google-auth'
+    ]
+
+    for package in required_packages:
+        try:
+            __import__(package.lower().replace('-', '_'))
+        except ImportError:
+            print(f"Installing {package}...")
+            subprocess.check_call([sys.executable, '-m', 'pip', 'install', package])
+
+# Install dependencies first
+install_dependencies()
+
 import yaml
 import webbrowser
 from urllib.parse import urlparse, parse_qs

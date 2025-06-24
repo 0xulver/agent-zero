@@ -7,26 +7,60 @@ stored in google-ads.yaml file.
 """
 
 import sys
+import subprocess
+
+# Check and install dependencies
+def install_dependencies():
+    """Install required packages if not available."""
+    required_packages = [
+        'PyYAML',
+        'google-ads'
+    ]
+
+    for package in required_packages:
+        try:
+            if package == 'google-ads':
+                from google.ads.googleads.client import GoogleAdsClient
+            else:
+                __import__(package.lower().replace('-', '_'))
+        except ImportError:
+            print(f"Installing {package}...")
+            subprocess.check_call([sys.executable, '-m', 'pip', 'install', package])
+
+# Install dependencies first
+install_dependencies()
+
 import yaml
 from google.ads.googleads.client import GoogleAdsClient
 from google.ads.googleads.errors import GoogleAdsException
 
-# Configuration
-CONFIG_FILE = "/a0/google-ads.yaml"
+# Configuration - multiple possible locations
+import os
+CONFIG_PATHS = [
+    "/a0/google-ads.yaml",           # Primary location when run by Agent Zero
+    "google-ads.yaml",               # Current directory (for testing)
+    "/root/google-ads.yaml",         # Home directory in container
+    os.path.expanduser("~/google-ads.yaml")  # User home directory
+]
 
 def load_config():
-    """Load the google-ads.yaml configuration file."""
-    try:
-        with open(CONFIG_FILE, 'r') as file:
-            config = yaml.safe_load(file)
-        return config
-    except FileNotFoundError:
-        print(f"❌ Error: Configuration file {CONFIG_FILE} not found.")
-        print("Please ensure you have created the google-ads.yaml file with your credentials.")
-        return None
-    except yaml.YAMLError as e:
-        print(f"❌ Error parsing YAML file: {e}")
-        return None
+    """Load the google-ads.yaml configuration file from multiple possible locations."""
+    for config_path in CONFIG_PATHS:
+        try:
+            with open(config_path, 'r') as file:
+                config = yaml.safe_load(file)
+            print(f"✅ Loaded configuration from {config_path}")
+            return config, config_path
+        except FileNotFoundError:
+            continue
+        except Exception as e:
+            print(f"❌ Error loading config from {config_path}: {e}")
+            continue
+
+    print(f"❌ Configuration file not found in any of these locations:")
+    for path in CONFIG_PATHS:
+        print(f"   - {path}")
+    return None, None
 
 def test_connection():
     """Test the Google Ads API connection."""
@@ -34,7 +68,7 @@ def test_connection():
     print("=" * 30)
     
     # Load configuration
-    config = load_config()
+    config, config_file = load_config()
     if not config:
         return False
     
@@ -65,7 +99,7 @@ def test_connection():
         print("🔄 Initializing Google Ads client...")
         
         # Initialize the Google Ads client
-        googleads_client = GoogleAdsClient.load_from_storage(CONFIG_FILE)
+        googleads_client = GoogleAdsClient.load_from_storage(config_file)
         
         print("✅ Client initialized successfully.")
         print()
