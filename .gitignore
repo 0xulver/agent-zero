@@ -49,3 +49,5 @@ knowledge/**
 # Global rule to include .gitkeep files anywhere
 !**/.gitkeep
 agent_history.gif
+
+google-ads.yaml
