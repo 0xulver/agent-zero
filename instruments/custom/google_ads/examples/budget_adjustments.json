@@ -1,0 +1,22 @@
+[
+  {
+    "campaign_resource_name": "customers/3045806466/campaigns/12345",
+    "budget_micros": 75000000,
+    "reason": "Increase budget for high-performing voice training campaign"
+  },
+  {
+    "campaign_resource_name": "customers/3045806466/campaigns/12346",
+    "budget_micros": 25000000,
+    "reason": "Decrease budget for underperforming public speaking campaign"
+  },
+  {
+    "campaign_resource_name": "customers/3045806466/campaigns/12347",
+    "budget_micros": 100000000,
+    "reason": "Boost budget for charisma coaching campaign during peak season"
+  },
+  {
+    "campaign_resource_name": "customers/3045806466/campaigns/12348",
+    "budget_micros": 50000000,
+    "reason": "Maintain current budget for presentation skills campaign"
+  }
+]

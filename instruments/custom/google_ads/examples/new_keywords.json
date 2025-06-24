@@ -1,0 +1,27 @@
+[
+  {
+    "text": "voice training online",
+    "match_type": "PHRASE",
+    "bid_micros": 1500000
+  },
+  {
+    "text": "public speaking course",
+    "match_type": "EXACT",
+    "bid_micros": 2000000
+  },
+  {
+    "text": "vocal coaching lessons",
+    "match_type": "BROAD",
+    "bid_micros": 1200000
+  },
+  {
+    "text": "presentation skills training",
+    "match_type": "PHRASE",
+    "bid_micros": 1800000
+  },
+  {
+    "text": "communication skills workshop",
+    "match_type": "BROAD",
+    "bid_micros": 1000000
+  }
+]

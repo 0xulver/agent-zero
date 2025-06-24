@@ -1,0 +1,42 @@
+[
+  {
+    "text": "free",
+    "match_type": "BROAD"
+  },
+  {
+    "text": "cheap",
+    "match_type": "BROAD"
+  },
+  {
+    "text": "discount",
+    "match_type": "BROAD"
+  },
+  {
+    "text": "jobs",
+    "match_type": "EXACT"
+  },
+  {
+    "text": "career",
+    "match_type": "PHRASE"
+  },
+  {
+    "text": "salary",
+    "match_type": "BROAD"
+  },
+  {
+    "text": "hiring",
+    "match_type": "BROAD"
+  },
+  {
+    "text": "diy",
+    "match_type": "BROAD"
+  },
+  {
+    "text": "do it yourself",
+    "match_type": "PHRASE"
+  },
+  {
+    "text": "youtube",
+    "match_type": "BROAD"
+  }
+]

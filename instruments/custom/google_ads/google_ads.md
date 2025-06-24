@@ -280,6 +280,41 @@ python /a0/instruments/custom/google_ads/campaign_manager.py --customer-id "3045
 python /a0/instruments/custom/google_ads/campaign_manager.py --customer-id "3045806466" --action optimize
 ```
 
+### 9. Campaign Operations (`campaign_operations.py`)
+**NEW** - Complete campaign management operations for existing campaigns:
+
+```bash
+# Update campaign status (pause/enable/remove campaigns)
+python /a0/instruments/custom/google_ads/campaign_operations.py --customer-id "3045806466" --operation update_campaign_status --campaign-resource-name "customers/3045806466/campaigns/12345" --status PAUSED
+
+# Update campaign budget
+python /a0/instruments/custom/google_ads/campaign_operations.py --customer-id "3045806466" --operation update_campaign_budget --campaign-resource-name "customers/3045806466/campaigns/12345" --budget-micros 75000000
+
+# Update keyword status (pause/enable underperforming keywords)
+python /a0/instruments/custom/google_ads/campaign_operations.py --customer-id "3045806466" --operation update_keyword_status --keyword-resource-name "customers/3045806466/adGroupCriteria/12345~67890" --status PAUSED
+
+# Update keyword bids
+python /a0/instruments/custom/google_ads/campaign_operations.py --customer-id "3045806466" --operation update_keyword_bid --keyword-resource-name "customers/3045806466/adGroupCriteria/12345~67890" --bid-micros 2000000
+
+# Update ad status (pause/enable ads)
+python /a0/instruments/custom/google_ads/campaign_operations.py --customer-id "3045806466" --operation update_ad_status --ad-resource-name "customers/3045806466/adGroupAds/12345~67890" --status PAUSED
+
+# Add new keywords to existing ad group
+python /a0/instruments/custom/google_ads/campaign_operations.py --customer-id "3045806466" --operation add_keywords --ad-group-resource-name "customers/3045806466/adGroups/12345" --keywords-file new_keywords.json
+
+# Add negative keywords to campaign
+python /a0/instruments/custom/google_ads/campaign_operations.py --customer-id "3045806466" --operation add_negative_keywords --campaign-resource-name "customers/3045806466/campaigns/12345" --negative-keywords-file negative_keywords.json
+
+# Automatically pause underperforming keywords
+python /a0/instruments/custom/google_ads/campaign_operations.py --customer-id "3045806466" --operation pause_underperforming --min-impressions 100 --max-ctr 0.02 --days 30
+
+# Automatically optimize keyword bids for target position
+python /a0/instruments/custom/google_ads/campaign_operations.py --customer-id "3045806466" --operation optimize_bids --target-position 3.0 --days 30
+
+# Bulk update campaign budgets
+python /a0/instruments/custom/google_ads/campaign_operations.py --customer-id "3045806466" --operation bulk_budget_update --budget-adjustments-file budget_changes.json
+```
+
 ## Complete Campaign Creation Workflow
 
 ### Step 1: Research & Planning
@@ -333,4 +368,12 @@ python /a0/instruments/custom/google_ads/keyword_research.py --customer-id "3045
 - ✅ **Campaign structure optimization**
 - ✅ **Keyword variation generation**
 - ✅ **Industry-specific templates**
+- ✅ **🆕 FULL CAMPAIGN MANAGEMENT OPERATIONS**
+- ✅ **🆕 Update campaign status, budgets, and settings**
+- ✅ **🆕 Manage keywords (pause, enable, update bids, add/remove)**
+- ✅ **🆕 Manage ads (pause, enable, update status)**
+- ✅ **🆕 Negative keyword management**
+- ✅ **🆕 Automated bid optimization**
+- ✅ **🆕 Automated underperforming keyword pausing**
+- ✅ **🆕 Bulk operations for efficiency**
 - ✅ Command-line interface for easy automation
