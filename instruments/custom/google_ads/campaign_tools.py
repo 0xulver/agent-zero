@@ -98,7 +98,78 @@ class CampaignOperations:
         else:
             # Default to BROAD if unknown match type
             return self.client.enums.KeywordMatchTypeEnum.BROAD
-    
+
+    def update_campaign_bidding_strategy(self, campaign_resource_name: str, strategy_type: str) -> str:
+        """Update campaign bidding strategy."""
+        try:
+            from google.ads.googleads.errors import GoogleAdsException
+            from google.protobuf import field_mask_pb2
+
+            campaign_service = self.client.get_service("CampaignService")
+            campaign_operation = self.client.get_type("CampaignOperation")
+
+            # Create the campaign object to update
+            campaign = campaign_operation.update
+            campaign.resource_name = campaign_resource_name
+
+            # Set the bidding strategy based on the strategy type
+            strategy_upper = strategy_type.upper()
+
+            if strategy_upper == "MANUAL_CPC":
+                # Manual CPC bidding strategy
+                manual_cpc = self.client.get_type("ManualCpc")
+                manual_cpc.enhanced_cpc_enabled = False
+                campaign.manual_cpc = manual_cpc
+
+            elif strategy_upper == "ENHANCED_CPC":
+                # Enhanced CPC bidding strategy
+                manual_cpc = self.client.get_type("ManualCpc")
+                manual_cpc.enhanced_cpc_enabled = True
+                campaign.manual_cpc = manual_cpc
+
+            elif strategy_upper == "MAXIMIZE_CLICKS":
+                # Maximize clicks bidding strategy
+                maximize_clicks = self.client.get_type("MaximizeClicks")
+                campaign.maximize_clicks = maximize_clicks
+
+            elif strategy_upper == "MAXIMIZE_CONVERSIONS":
+                # Maximize conversions bidding strategy
+                maximize_conversions = self.client.get_type("MaximizeConversions")
+                campaign.maximize_conversions = maximize_conversions
+
+            elif strategy_upper == "MAXIMIZE_CONVERSION_VALUE":
+                # Maximize conversion value bidding strategy
+                maximize_conversion_value = self.client.get_type("MaximizeConversionValue")
+                campaign.maximize_conversion_value = maximize_conversion_value
+
+            else:
+                raise ValueError(f"Unsupported bidding strategy: {strategy_type}. Supported: MANUAL_CPC, ENHANCED_CPC, MAXIMIZE_CLICKS, MAXIMIZE_CONVERSIONS, MAXIMIZE_CONVERSION_VALUE")
+
+            # Create the field mask for the update
+            field_paths = []
+
+            if strategy_upper in ["MANUAL_CPC", "ENHANCED_CPC"]:
+                field_paths.append("manual_cpc")
+            elif strategy_upper == "MAXIMIZE_CLICKS":
+                field_paths.append("maximize_clicks")
+            elif strategy_upper == "MAXIMIZE_CONVERSIONS":
+                field_paths.append("maximize_conversions")
+            elif strategy_upper == "MAXIMIZE_CONVERSION_VALUE":
+                field_paths.append("maximize_conversion_value")
+
+            # Create the field mask
+            campaign_operation.update_mask = field_mask_pb2.FieldMask(paths=field_paths)
+
+            # Execute the update
+            response = campaign_service.mutate_campaigns(
+                customer_id=self.customer_id, operations=[campaign_operation]
+            )
+
+            return response.results[0].resource_name
+
+        except Exception as e:
+            raise RuntimeError(f"Failed to update campaign bidding strategy: {e}")
+
     def add_keywords_to_ad_group(self, ad_group_resource_name: str,
                                keywords_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Add keywords to an ad group with individual error handling."""

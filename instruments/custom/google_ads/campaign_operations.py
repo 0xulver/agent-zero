@@ -125,6 +125,102 @@ def update_campaign_budget(client, customer_id, campaign_resource_name, budget_m
     except GoogleAdsException as ex:
         return f"❌ Failed to update campaign budget: {ex}"
 
+def update_campaign_bidding_strategy(client, customer_id, campaign_resource_name, strategy_type):
+    """Update campaign bidding strategy."""
+    from google.ads.googleads.errors import GoogleAdsException
+
+    try:
+        campaign_service = client.get_service("CampaignService")
+
+        # Create a new campaign object with the bidding strategy
+        campaign = client.get_type("Campaign")
+        campaign.resource_name = campaign_resource_name
+
+        # Set the bidding strategy based on the strategy type
+        strategy_upper = strategy_type.upper()
+
+        if strategy_upper == "MANUAL_CPC":
+            # Manual CPC bidding strategy
+            campaign.manual_cpc.enhanced_cpc_enabled = False
+
+        elif strategy_upper == "ENHANCED_CPC":
+            # Enhanced CPC bidding strategy
+            campaign.manual_cpc.enhanced_cpc_enabled = True
+
+        elif strategy_upper == "MAXIMIZE_CLICKS":
+            # Maximize clicks bidding strategy - just access the field to set it
+            _ = campaign.maximize_clicks  # This creates the field
+
+        elif strategy_upper == "MAXIMIZE_CONVERSIONS":
+            # Maximize conversions bidding strategy
+            # We need to set a specific subfield to avoid the "field has subfields" error
+            # Set target_cpa_micros to None/0 to indicate no target CPA limit
+            campaign.maximize_conversions.target_cpa_micros = 0
+
+        elif strategy_upper == "MAXIMIZE_CONVERSION_VALUE":
+            # Maximize conversion value bidding strategy - just access the field to set it
+            _ = campaign.maximize_conversion_value  # This creates the field
+
+        elif strategy_upper == "TARGET_CPA":
+            # Target CPA bidding strategy - requires target_cpa_micros parameter
+            print("⚠️  TARGET_CPA strategy requires target_cpa_micros parameter")
+            return f"❌ TARGET_CPA strategy requires additional parameters"
+
+        elif strategy_upper == "TARGET_ROAS":
+            # Target ROAS bidding strategy - requires target_roas parameter
+            print("⚠️  TARGET_ROAS strategy requires target_roas parameter")
+            return f"❌ TARGET_ROAS strategy requires additional parameters"
+
+        else:
+            return f"❌ Unsupported bidding strategy: {strategy_type}. Supported: MANUAL_CPC, ENHANCED_CPC, MAXIMIZE_CLICKS, MAXIMIZE_CONVERSIONS, MAXIMIZE_CONVERSION_VALUE"
+
+        # Create the campaign operation
+        campaign_operation = client.get_type("CampaignOperation")
+        campaign_operation.update = campaign
+
+        # Create the field mask based on the strategy type
+        # For conversion-based strategies, we need to be more specific about subfields
+        from google.protobuf.field_mask_pb2 import FieldMask
+
+        if strategy_upper in ["MANUAL_CPC", "ENHANCED_CPC"]:
+            field_paths = ["manual_cpc.enhanced_cpc_enabled"]
+        elif strategy_upper == "MAXIMIZE_CLICKS":
+            # For maximize clicks, we just need to indicate the strategy is set
+            field_paths = ["maximize_clicks"]
+        elif strategy_upper == "MAXIMIZE_CONVERSIONS":
+            # For maximize conversions, we need to specify the exact subfield we're setting
+            field_paths = ["maximize_conversions.target_cpa_micros"]
+        elif strategy_upper == "MAXIMIZE_CONVERSION_VALUE":
+            # For maximize conversion value, same approach
+            field_paths = ["maximize_conversion_value"]
+        else:
+            field_paths = []
+
+        campaign_operation.update_mask = FieldMask(paths=field_paths)
+
+        print(f"🔄 Updating campaign bidding strategy to {strategy_type}...")
+        print(f"   Campaign: {campaign_resource_name}")
+        print(f"   Generated field mask paths: {list(campaign_operation.update_mask.paths)}")
+
+        # Execute the update
+        response = campaign_service.mutate_campaigns(
+            customer_id=customer_id, operations=[campaign_operation]
+        )
+
+        print(f"✅ Updated campaign bidding strategy to {strategy_type}: {response.results[0].resource_name}")
+        return response.results[0].resource_name
+
+    except GoogleAdsException as ex:
+        error_details = []
+        for error in ex.failure.errors:
+            error_details.append(f"   - {error.message}")
+
+        print(f"❌ Failed to update campaign bidding strategy:")
+        for detail in error_details:
+            print(detail)
+
+        return f"❌ Failed to update campaign bidding strategy: {ex}"
+
 def update_keyword_status(client, customer_id, keyword_resource_name, status):
     """Update keyword status (ENABLED, PAUSED, REMOVED)."""
     from google.ads.googleads.errors import GoogleAdsException
@@ -773,6 +869,13 @@ def perform_campaign_operations(customer_id, operation_type, **kwargs):
             kwargs["budget_micros"]
         )
 
+    elif operation_type == "update_bidding_strategy":
+        return update_campaign_bidding_strategy(
+            client, customer_id,
+            kwargs["campaign_resource_name"],
+            kwargs["strategy_type"]
+        )
+
     elif operation_type == "update_keyword_status":
         return update_keyword_status(
             client, customer_id,
@@ -853,7 +956,7 @@ def main():
     parser.add_argument('--customer-id', required=True, help='Google Ads customer ID')
     parser.add_argument('--operation', required=True,
                        choices=[
-                           'update_campaign_status', 'update_campaign_budget',
+                           'update_campaign_status', 'update_campaign_budget', 'update_bidding_strategy',
                            'update_keyword_status', 'update_keyword_bid',
                            'update_ad_status', 'add_keywords', 'add_negative_keywords',
                            'pause_underperforming', 'optimize_bids', 'bulk_budget_update',
@@ -865,6 +968,9 @@ def main():
     parser.add_argument('--campaign-resource-name', help='Campaign resource name')
     parser.add_argument('--status', choices=['ENABLED', 'PAUSED', 'REMOVED'], help='Status to set')
     parser.add_argument('--budget-micros', type=int, help='Budget in micros (e.g., 50000000 = $50)')
+    parser.add_argument('--strategy-type',
+                       choices=['MANUAL_CPC', 'ENHANCED_CPC', 'MAXIMIZE_CLICKS', 'MAXIMIZE_CONVERSIONS', 'MAXIMIZE_CONVERSION_VALUE'],
+                       help='Bidding strategy type')
 
     # Keyword operations
     parser.add_argument('--keyword-resource-name', help='Keyword resource name')
@@ -913,6 +1019,15 @@ def main():
         kwargs = {
             "campaign_resource_name": args.campaign_resource_name,
             "budget_micros": args.budget_micros
+        }
+
+    elif args.operation == 'update_bidding_strategy':
+        if not args.campaign_resource_name or not args.strategy_type:
+            print("❌ --campaign-resource-name and --strategy-type required")
+            return
+        kwargs = {
+            "campaign_resource_name": args.campaign_resource_name,
+            "strategy_type": args.strategy_type
         }
 
     elif args.operation == 'update_keyword_status':
