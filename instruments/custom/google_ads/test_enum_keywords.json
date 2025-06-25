@@ -1,0 +1,17 @@
+[
+  {
+    "text": "confidence building test",
+    "match_type": "EXACT",
+    "bid_micros": 1500000
+  },
+  {
+    "text": "self esteem improvement test", 
+    "match_type": "PHRASE",
+    "bid_micros": 1500000
+  },
+  {
+    "text": "charisma development test",
+    "match_type": "BROAD", 
+    "bid_micros": 1500000
+  }
+]

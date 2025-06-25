@@ -1,0 +1,27 @@
+[
+  {
+    "text": "public speaking confidence",
+    "match_type": "BROAD",
+    "bid_micros": 1500000
+  },
+  {
+    "text": "invalid keyword with special chars @#$%",
+    "match_type": "BROAD",
+    "bid_micros": 1500000
+  },
+  {
+    "text": "communication skills",
+    "match_type": "BROAD", 
+    "bid_micros": 1500000
+  },
+  {
+    "text": "",
+    "match_type": "BROAD",
+    "bid_micros": 1500000
+  },
+  {
+    "text": "leadership training",
+    "match_type": "BROAD", 
+    "bid_micros": 1500000
+  }
+]

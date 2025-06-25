@@ -80,48 +80,107 @@ class CampaignManager:
 
 class CampaignOperations:
     """Class for specific campaign operations like keyword management."""
-    
+
     def __init__(self, customer_id: str, config_path: Optional[str] = None):
         self.customer_id = validate_customer_id(customer_id)
         self.client = get_google_ads_client(config_path)
+
+    def _get_keyword_match_type_enum(self, match_type_string: str):
+        """Convert match type string to proper Google Ads API enum."""
+        match_type = match_type_string.upper() if match_type_string else "BROAD"
+
+        if match_type == "EXACT":
+            return self.client.enums.KeywordMatchTypeEnum.EXACT
+        elif match_type == "PHRASE":
+            return self.client.enums.KeywordMatchTypeEnum.PHRASE
+        elif match_type == "BROAD":
+            return self.client.enums.KeywordMatchTypeEnum.BROAD
+        else:
+            # Default to BROAD if unknown match type
+            return self.client.enums.KeywordMatchTypeEnum.BROAD
     
-    def add_keywords_to_ad_group(self, ad_group_resource_name: str, 
-                               keywords_data: List[Dict[str, Any]]) -> List[str]:
-        """Add keywords to an ad group."""
+    def add_keywords_to_ad_group(self, ad_group_resource_name: str,
+                               keywords_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Add keywords to an ad group with individual error handling."""
         try:
+            from google.ads.googleads.errors import GoogleAdsException
+
             ad_group_criterion_service = self.client.get_service("AdGroupCriterionService")
             operations = []
-            
+
+            # Prepare operations
             for keyword_data in keywords_data:
                 operation = self.client.get_type("AdGroupCriterionOperation")
                 criterion = operation.create
-                
+
                 # Set keyword properties
                 criterion.ad_group = ad_group_resource_name
                 criterion.keyword.text = keyword_data["text"]
-                
-                # Handle match type
-                match_type = keyword_data.get("match_type", "BROAD").upper()
-                if match_type == "EXACT":
-                    criterion.keyword.match_type = self.client.enums.KeywordMatchTypeEnum.EXACT
-                elif match_type == "PHRASE":
-                    criterion.keyword.match_type = self.client.enums.KeywordMatchTypeEnum.PHRASE
-                else:
-                    criterion.keyword.match_type = self.client.enums.KeywordMatchTypeEnum.BROAD
-                
+
+                # Handle match type using helper function
+                match_type_string = keyword_data.get("match_type", "BROAD")
+                criterion.keyword.match_type = self._get_keyword_match_type_enum(match_type_string)
+
                 # Set bid if provided
                 if "bid_micros" in keyword_data:
                     criterion.cpc_bid_micros = keyword_data["bid_micros"]
-                
+
                 operations.append(operation)
-            
-            # Execute operations
-            response = ad_group_criterion_service.mutate_ad_group_criteria(
-                customer_id=self.customer_id, operations=operations
-            )
-            
-            return [result.resource_name for result in response.results]
-            
+
+            # Process operations individually to handle policy errors
+            results = []
+            failed_keywords = []
+
+            for i, operation in enumerate(operations):
+                keyword_text = keywords_data[i]["text"]
+
+                try:
+                    response = ad_group_criterion_service.mutate_ad_group_criteria(
+                        customer_id=self.customer_id, operations=[operation]
+                    )
+                    results.extend([result.resource_name for result in response.results])
+
+                except GoogleAdsException as ex:
+                    # Check if this is a policy error
+                    is_policy_error = False
+                    error_details = []
+
+                    for error in ex.failure.errors:
+                        error_code = error.error_code
+                        if hasattr(error_code, 'policy_violation_error'):
+                            is_policy_error = True
+                            error_details.append(f"POLICY_ERROR: {error.message}")
+                        elif hasattr(error_code, 'criterion_error'):
+                            error_details.append(f"CRITERION_ERROR: {error.message}")
+                        else:
+                            error_details.append(f"ERROR: {error.message}")
+
+                    # Log the failed keyword and continue
+                    failed_keywords.append({
+                        "keyword": keyword_text,
+                        "error_type": "POLICY_ERROR" if is_policy_error else "OTHER_ERROR",
+                        "errors": error_details
+                    })
+
+                except Exception as e:
+                    # Handle non-GoogleAds exceptions
+                    failed_keywords.append({
+                        "keyword": keyword_text,
+                        "error_type": "UNKNOWN_ERROR",
+                        "errors": [str(e)]
+                    })
+
+            # Return detailed results
+            return {
+                "successful_keywords": results,
+                "failed_keywords": failed_keywords,
+                "summary": {
+                    "total": len(keywords_data),
+                    "successful": len(results),
+                    "failed": len(failed_keywords)
+                }
+            }
+
         except Exception as e:
             raise RuntimeError(f"Failed to add keywords: {e}")
     

@@ -219,22 +219,16 @@ def get_keyword_match_type_enum(client, match_type_string):
     """Convert match type string to proper Google Ads API enum."""
     match_type = match_type_string.upper() if match_type_string else "BROAD"
 
-    print(f"DEBUG: Converting match type string '{match_type_string}' -> '{match_type}'")
-
     if match_type == "EXACT":
-        enum_result = client.enums.KeywordMatchTypeEnum.EXACT
+        return client.enums.KeywordMatchTypeEnum.EXACT
     elif match_type == "PHRASE":
-        enum_result = client.enums.KeywordMatchTypeEnum.PHRASE
+        return client.enums.KeywordMatchTypeEnum.PHRASE
     elif match_type == "BROAD":
-        enum_result = client.enums.KeywordMatchTypeEnum.BROAD
+        return client.enums.KeywordMatchTypeEnum.BROAD
     else:
         # Default to BROAD if unknown match type
-        print(f"⚠️ Unknown match type '{match_type}', defaulting to BROAD")
-        enum_result = client.enums.KeywordMatchTypeEnum.BROAD
-
-    print(f"DEBUG: Enum result type: {type(enum_result)}, value: {enum_result}")
-    print(f"DEBUG: Enum integer value: {int(enum_result)}")
-    return enum_result
+        print(f"⚠️ Unknown match type '{match_type}', defaulting to BROAD", file=sys.stderr)
+        return client.enums.KeywordMatchTypeEnum.BROAD
 
 def check_campaign_match_type_restrictions(client, customer_id, ad_group_resource_name):
     """Check if campaign settings restrict match types to BROAD only."""
@@ -335,26 +329,23 @@ def add_keywords_to_ad_group(client, customer_id, ad_group_resource_name, keywor
                     keyword_text = original_keyword
                     print(f"   Converted: '{keyword_text}' (BROAD)")
 
-                criterion.keyword.match_type = 4  # BROAD
+                # Use proper enum for BROAD match type
+                criterion.keyword.match_type = get_keyword_match_type_enum(client, "BROAD")
 
             elif not has_restrictions and match_type_string.upper() in ["EXACT", "PHRASE"]:
                 print(f"✅ ATTEMPTING: {match_type_string} match type (campaign allows it)")
                 print(f"   Keyword: '{original_keyword}' ({match_type_string})")
                 keyword_text = original_keyword
 
-                # Try to use the requested match type
-                if match_type_string.upper() == "EXACT":
-                    criterion.keyword.match_type = 2  # EXACT
-                elif match_type_string.upper() == "PHRASE":
-                    criterion.keyword.match_type = 3  # PHRASE
-                else:
-                    criterion.keyword.match_type = 4  # BROAD
+                # Use proper enum for the requested match type
+                criterion.keyword.match_type = get_keyword_match_type_enum(client, match_type_string)
 
             else:
                 # BROAD match type - always works
                 print(f"✅ BROAD match type: '{original_keyword}'")
                 keyword_text = original_keyword
-                criterion.keyword.match_type = 4  # BROAD
+                # Use proper enum for BROAD match type
+                criterion.keyword.match_type = get_keyword_match_type_enum(client, "BROAD")
 
             criterion.keyword.text = keyword_text
             criterion.ad_group = ad_group_resource_name
@@ -365,22 +356,94 @@ def add_keywords_to_ad_group(client, customer_id, ad_group_resource_name, keywor
 
             operations.append(criterion_operation)
 
-        # WORKAROUND: Process one operation at a time to avoid library serialization bug
+        # Process one operation at a time with individual error handling
         results = []
+        failed_keywords = []
+
         for i, operation in enumerate(operations):
+            keyword_text = keywords_data[i]["text"]
             print(f"DEBUG: Sending operation {i+1}/{len(operations)} to API...")
+
             try:
                 response = ad_group_criterion_service.mutate_ad_group_criteria(
                     customer_id=customer_id, operations=[operation]
                 )
                 results.extend([result.resource_name for result in response.results])
-                print(f"✅ Successfully added keyword {i+1}")
-            except Exception as e:
-                print(f"❌ Failed to add keyword {i+1}: {e}")
-                return f"❌ Failed to add keyword {i+1}: {e}"
+                print(f"✅ Successfully added keyword {i+1}: '{keyword_text}'")
 
-        print(f"✅ Added {len(results)} keywords to ad group")
-        return results
+            except GoogleAdsException as ex:
+                # Check if this is a policy error
+                is_policy_error = False
+                error_details = []
+
+                for error in ex.failure.errors:
+                    error_code = error.error_code
+                    if hasattr(error_code, 'policy_violation_error'):
+                        is_policy_error = True
+                        error_details.append(f"POLICY_ERROR: {error.message}")
+                    elif hasattr(error_code, 'criterion_error'):
+                        error_details.append(f"CRITERION_ERROR: {error.message}")
+                    else:
+                        error_details.append(f"ERROR: {error.message}")
+
+                # Log the failed keyword and continue
+                failed_keywords.append({
+                    "keyword": keyword_text,
+                    "error_type": "POLICY_ERROR" if is_policy_error else "OTHER_ERROR",
+                    "errors": error_details
+                })
+
+                if is_policy_error:
+                    print(f"⚠️  POLICY_ERROR for keyword {i+1}: '{keyword_text}'")
+                    for detail in error_details:
+                        print(f"   {detail}")
+                    print(f"   Continuing with remaining keywords...")
+                else:
+                    print(f"❌ Failed to add keyword {i+1}: '{keyword_text}'")
+                    for detail in error_details:
+                        print(f"   {detail}")
+                    print(f"   Continuing with remaining keywords...")
+
+            except Exception as e:
+                # Handle non-GoogleAds exceptions
+                failed_keywords.append({
+                    "keyword": keyword_text,
+                    "error_type": "UNKNOWN_ERROR",
+                    "errors": [str(e)]
+                })
+                print(f"❌ Unexpected error for keyword {i+1}: '{keyword_text}' - {e}")
+                print(f"   Continuing with remaining keywords...")
+
+        # Summary report
+        total_keywords = len(keywords_data)
+        successful_keywords = len(results)
+        failed_count = len(failed_keywords)
+
+        print(f"\n📊 KEYWORD ADDITION SUMMARY:")
+        print(f"   Total keywords processed: {total_keywords}")
+        print(f"   Successfully added: {successful_keywords}")
+        print(f"   Failed: {failed_count}")
+
+        if failed_keywords:
+            print(f"\n⚠️  FAILED KEYWORDS:")
+            for failed in failed_keywords:
+                print(f"   - '{failed['keyword']}' ({failed['error_type']})")
+                for error in failed['errors']:
+                    print(f"     {error}")
+
+        if successful_keywords > 0:
+            print(f"\n✅ Successfully added {successful_keywords} out of {total_keywords} keywords to ad group")
+
+        # Return results with failure information
+        return {
+            "successful_keywords": results,
+            "failed_keywords": failed_keywords,
+            "summary": {
+                "total": total_keywords,
+                "successful": successful_keywords,
+                "failed": failed_count
+            }
+        }
 
     except GoogleAdsException as ex:
         return f"❌ Failed to add keywords: {ex}"
@@ -401,16 +464,9 @@ def add_negative_keywords(client, customer_id, campaign_resource_name, negative_
             criterion.negative = True
             criterion.keyword.text = neg_keyword["text"]
 
-            # Set match type using direct integer assignment like debug script
+            # Set match type using proper enum
             match_type_string = neg_keyword.get("match_type", "BROAD")
-            if match_type_string.upper() == "EXACT":
-                criterion.keyword.match_type = 2
-            elif match_type_string.upper() == "PHRASE":
-                criterion.keyword.match_type = 3
-            elif match_type_string.upper() == "BROAD":
-                criterion.keyword.match_type = 4
-            else:
-                criterion.keyword.match_type = 4  # Default to BROAD
+            criterion.keyword.match_type = get_keyword_match_type_enum(client, match_type_string)
 
             operations.append(criterion_operation)
 

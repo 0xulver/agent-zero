@@ -1,0 +1,27 @@
+[
+  {
+    "text": "confidence building",
+    "match_type": "BROAD",
+    "bid_micros": 1500000
+  },
+  {
+    "text": "health insurance",
+    "match_type": "BROAD",
+    "bid_micros": 1500000
+  },
+  {
+    "text": "self improvement",
+    "match_type": "BROAD", 
+    "bid_micros": 1500000
+  },
+  {
+    "text": "medical treatment",
+    "match_type": "BROAD",
+    "bid_micros": 1500000
+  },
+  {
+    "text": "charisma development",
+    "match_type": "BROAD", 
+    "bid_micros": 1500000
+  }
+]
