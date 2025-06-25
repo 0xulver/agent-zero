@@ -170,46 +170,90 @@ def create_keywords(client, customer_id, ad_group_resource_name, keywords_data):
         print(f"❌ Keyword creation failed: {ex}")
         return []
 
+def validate_ad_copy_lengths(ad_data):
+    """Validate ad copy lengths before API submission."""
+    errors = []
+
+    # Validate headlines
+    headlines = ad_data.get("headlines", [])
+    if not headlines:
+        errors.append("❌ At least 3 headlines are required for responsive search ads")
+    elif len(headlines) < 3:
+        errors.append(f"❌ At least 3 headlines are required, but only {len(headlines)} provided")
+
+    for i, headline in enumerate(headlines, 1):
+        if len(headline) > 30:
+            errors.append(f"❌ Headline {i} exceeds 30 character limit: '{headline}' ({len(headline)} characters)")
+        elif len(headline) == 0:
+            errors.append(f"❌ Headline {i} is empty")
+
+    # Validate descriptions
+    descriptions = ad_data.get("descriptions", [])
+    if not descriptions:
+        errors.append("❌ At least 2 descriptions are required for responsive search ads")
+    elif len(descriptions) < 2:
+        errors.append(f"❌ At least 2 descriptions are required, but only {len(descriptions)} provided")
+
+    for i, description in enumerate(descriptions, 1):
+        if len(description) > 90:
+            errors.append(f"❌ Description {i} exceeds 90 character limit: '{description}' ({len(description)} characters)")
+        elif len(description) == 0:
+            errors.append(f"❌ Description {i} is empty")
+
+    # Validate final URL
+    final_url = ad_data.get("final_url", "")
+    if not final_url or final_url == "https://example.com":
+        errors.append("❌ A valid final URL is required")
+
+    return errors
+
 def create_responsive_search_ad(client, customer_id, ad_group_resource_name, ad_data):
     """Create a responsive search ad."""
     from google.ads.googleads.errors import GoogleAdsException
-    
+
     try:
+        # Validate ad copy lengths before making API call
+        validation_errors = validate_ad_copy_lengths(ad_data)
+        if validation_errors:
+            error_message = "❌ Ad copy validation failed:\n" + "\n".join(validation_errors)
+            print(error_message)
+            return None
+
         ad_group_ad_service = client.get_service("AdGroupAdService")
         ad_group_ad_operation = client.get_type("AdGroupAdOperation")
         ad_group_ad = ad_group_ad_operation.create
-        
+
         ad_group_ad.ad_group = ad_group_resource_name
         ad_group_ad.status = client.enums.AdGroupAdStatusEnum.ENABLED
-        
+
         # Create responsive search ad
         responsive_search_ad = ad_group_ad.ad.responsive_search_ad
-        
-        # Add headlines (minimum 3, maximum 15)
+
+        # Add headlines (minimum 3, maximum 15) - now validated
         for headline in ad_data["headlines"][:15]:
             headline_asset = client.get_type("AdTextAsset")
-            headline_asset.text = headline
+            headline_asset.text = headline  # No truncation needed - already validated
             responsive_search_ad.headlines.append(headline_asset)
-        
-        # Add descriptions (minimum 2, maximum 4)
+
+        # Add descriptions (minimum 2, maximum 4) - now validated
         for description in ad_data["descriptions"][:4]:
             description_asset = client.get_type("AdTextAsset")
-            description_asset.text = description
+            description_asset.text = description  # No truncation needed - already validated
             responsive_search_ad.descriptions.append(description_asset)
-        
+
         # Set final URLs
         ad_group_ad.ad.final_urls.append(ad_data.get("final_url", "https://example.com"))
-        
+
         # Submit ad creation
         ad_response = ad_group_ad_service.mutate_ad_group_ads(
             customer_id=customer_id, operations=[ad_group_ad_operation]
         )
-        
+
         ad_resource_name = ad_response.results[0].resource_name
         print(f"✅ Created responsive search ad: {ad_resource_name}")
-        
+
         return ad_resource_name
-        
+
     except GoogleAdsException as ex:
         print(f"❌ Ad creation failed: {ex}")
         return None

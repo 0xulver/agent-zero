@@ -1,0 +1,16 @@
+{
+    "name": "Valid Ad Test Group",
+    "cpc_bid_micros": 2000000,
+    "ad_config": {
+        "final_url": "https://thecharismafoundation.org/events-1/",
+        "headlines": [
+            "Learn Public Speaking",
+            "Confidence Building Course",
+            "Master Communication Skills"
+        ],
+        "descriptions": [
+            "Transform your speaking skills with expert training. Join thousands of students.",
+            "Professional public speaking course. Build confidence and master communication."
+        ]
+    }
+}

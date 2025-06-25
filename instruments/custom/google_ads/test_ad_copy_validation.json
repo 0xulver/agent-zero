@@ -1,0 +1,59 @@
+{
+  "valid_ad": {
+    "headlines": [
+      "Learn Public Speaking",
+      "Confidence Building Course",
+      "Master Communication Skills"
+    ],
+    "descriptions": [
+      "Transform your speaking skills with expert training. Join thousands of students.",
+      "Professional public speaking course. Build confidence and master communication."
+    ],
+    "final_url": "https://thecharismafoundation.org/courses"
+  },
+  "invalid_ad_long_headlines": {
+    "headlines": [
+      "This headline is way too long and exceeds the 30 character limit set by Google Ads",
+      "Another extremely long headline that will definitely fail validation",
+      "Short one"
+    ],
+    "descriptions": [
+      "Valid description under 90 characters.",
+      "Another valid description."
+    ],
+    "final_url": "https://thecharismafoundation.org/courses"
+  },
+  "invalid_ad_long_descriptions": {
+    "headlines": [
+      "Good Headline 1",
+      "Good Headline 2", 
+      "Good Headline 3"
+    ],
+    "descriptions": [
+      "This description is way too long and exceeds the 90 character limit that Google Ads has set for responsive search ad descriptions and will definitely fail validation",
+      "Another extremely long description that goes way beyond the character limit and should trigger a validation error"
+    ],
+    "final_url": "https://thecharismafoundation.org/courses"
+  },
+  "invalid_ad_insufficient_content": {
+    "headlines": [
+      "Only Two Headlines"
+    ],
+    "descriptions": [
+      "Only one description"
+    ],
+    "final_url": "https://thecharismafoundation.org/courses"
+  },
+  "invalid_ad_empty_content": {
+    "headlines": [
+      "Good Headline",
+      "",
+      "Another Good Headline"
+    ],
+    "descriptions": [
+      "",
+      "Good description"
+    ],
+    "final_url": "https://example.com"
+  }
+}

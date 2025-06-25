@@ -1,0 +1,16 @@
+{
+    "name": "Validation Test Ad Group v2",
+    "cpc_bid_micros": 2000000,
+    "ad_config": {
+        "final_url": "https://thecharismafoundation.org/events-1/",
+        "headlines": [
+            "This headline is way too long and exceeds the 30 character limit set by Google Ads",
+            "Another extremely long headline that will definitely fail validation",
+            "Short one"
+        ],
+        "descriptions": [
+            "This description is way too long and exceeds the 90 character limit that Google Ads has set for responsive search ad descriptions and will definitely fail validation",
+            "Another extremely long description that goes way beyond the character limit and should trigger a validation error"
+        ]
+    }
+}

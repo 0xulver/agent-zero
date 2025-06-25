@@ -726,15 +726,32 @@ def create_ad_group_with_content(client, customer_id, campaign_resource_name, ad
                 print(f"⚠️ Warning: {keyword_resources}")
 
         # Step 3: Create ads if provided
-        if "ads" in ad_group_config and ad_group_config["ads"]:
-            for ad_data in ad_group_config["ads"]:
+        ads_to_create = []
+
+        # Handle "ad_config" format (single ad)
+        if "ad_config" in ad_group_config and ad_group_config["ad_config"]:
+            print(f"📝 Found ad_config - creating single ad")
+            ads_to_create.append(ad_group_config["ad_config"])
+
+        # Handle "ads" format (multiple ads)
+        elif "ads" in ad_group_config and ad_group_config["ads"]:
+            print(f"📝 Found ads array - creating {len(ad_group_config['ads'])} ads")
+            ads_to_create.extend(ad_group_config["ads"])
+
+        # Create the ads
+        if ads_to_create:
+            for i, ad_data in enumerate(ads_to_create, 1):
+                print(f"🔄 Creating ad {i}/{len(ads_to_create)}...")
                 ad_resource = create_responsive_search_ad(
                     client, customer_id, ad_group_resource_name, ad_data
                 )
                 if ad_resource and not ad_resource.startswith("❌"):
                     created_resources["ads"].append(ad_resource)
+                    print(f"✅ Successfully created ad {i}")
                 else:
-                    print(f"⚠️ Warning: {ad_resource}")
+                    print(f"❌ Failed to create ad {i}: {ad_resource}")
+        else:
+            print("ℹ️  No ad configuration provided (no 'ad_config' or 'ads' found)")
 
         print(f"✅ Created complete ad group with {len(created_resources['keywords'])} keywords and {len(created_resources['ads'])} ads")
         return created_resources
@@ -742,11 +759,55 @@ def create_ad_group_with_content(client, customer_id, campaign_resource_name, ad
     except Exception as ex:
         return f"❌ Failed to create ad group with content: {ex}"
 
+def validate_ad_copy_lengths(ad_data):
+    """Validate ad copy lengths before API submission."""
+    errors = []
+
+    # Validate headlines
+    headlines = ad_data.get("headlines", [])
+    if not headlines:
+        errors.append("❌ At least 3 headlines are required for responsive search ads")
+    elif len(headlines) < 3:
+        errors.append(f"❌ At least 3 headlines are required, but only {len(headlines)} provided")
+
+    for i, headline in enumerate(headlines, 1):
+        if len(headline) > 30:
+            errors.append(f"❌ Headline {i} exceeds 30 character limit: '{headline}' ({len(headline)} characters)")
+        elif len(headline) == 0:
+            errors.append(f"❌ Headline {i} is empty")
+
+    # Validate descriptions
+    descriptions = ad_data.get("descriptions", [])
+    if not descriptions:
+        errors.append("❌ At least 2 descriptions are required for responsive search ads")
+    elif len(descriptions) < 2:
+        errors.append(f"❌ At least 2 descriptions are required, but only {len(descriptions)} provided")
+
+    for i, description in enumerate(descriptions, 1):
+        if len(description) > 90:
+            errors.append(f"❌ Description {i} exceeds 90 character limit: '{description}' ({len(description)} characters)")
+        elif len(description) == 0:
+            errors.append(f"❌ Description {i} is empty")
+
+    # Validate final URL
+    final_url = ad_data.get("final_url", "")
+    if not final_url or final_url == "https://example.com":
+        errors.append("❌ A valid final URL is required")
+
+    return errors
+
 def create_responsive_search_ad(client, customer_id, ad_group_resource_name, ad_data):
     """Create a responsive search ad in an ad group."""
     from google.ads.googleads.errors import GoogleAdsException
 
     try:
+        # Validate ad copy lengths before making API call
+        validation_errors = validate_ad_copy_lengths(ad_data)
+        if validation_errors:
+            error_message = "❌ Ad copy validation failed:\n" + "\n".join(validation_errors)
+            print(error_message)
+            return error_message
+
         ad_group_ad_service = client.get_service("AdGroupAdService")
         ad_group_ad_operation = client.get_type("AdGroupAdOperation")
 
@@ -757,16 +818,16 @@ def create_responsive_search_ad(client, customer_id, ad_group_resource_name, ad_
         # Create responsive search ad
         ad_group_ad.ad.type_ = client.enums.AdTypeEnum.RESPONSIVE_SEARCH_AD
 
-        # Add headlines
+        # Add headlines (now validated)
         for headline_text in ad_data.get("headlines", []):
             headline = client.get_type("AdTextAsset")
-            headline.text = headline_text[:30]  # Google Ads limit
+            headline.text = headline_text  # No truncation needed - already validated
             ad_group_ad.ad.responsive_search_ad.headlines.append(headline)
 
-        # Add descriptions
+        # Add descriptions (now validated)
         for description_text in ad_data.get("descriptions", []):
             description = client.get_type("AdTextAsset")
-            description.text = description_text[:90]  # Google Ads limit
+            description.text = description_text  # No truncation needed - already validated
             ad_group_ad.ad.responsive_search_ad.descriptions.append(description)
 
         # Set final URLs
