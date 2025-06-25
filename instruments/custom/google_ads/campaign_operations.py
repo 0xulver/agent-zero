@@ -576,6 +576,97 @@ def add_negative_keywords(client, customer_id, campaign_resource_name, negative_
     except GoogleAdsException as ex:
         return f"❌ Failed to add negative keywords: {ex}"
 
+def update_campaign_targeting(client, customer_id, campaign_resource_name, targeting_data):
+    """Add location and language targeting to an existing campaign."""
+    from google.ads.googleads.errors import GoogleAdsException
+
+    try:
+        campaign_criterion_service = client.get_service("CampaignCriterionService")
+        operations = []
+
+        # Process location targeting
+        if "locations" in targeting_data and targeting_data["locations"]:
+            print(f"🌍 Adding {len(targeting_data['locations'])} location targets...")
+
+            for location in targeting_data["locations"]:
+                criterion_operation = client.get_type("CampaignCriterionOperation")
+                criterion = criterion_operation.create
+
+                criterion.campaign = campaign_resource_name
+                criterion.location.geo_target_constant = location["geo_target_constant"]
+
+                # Set bid modifier if provided
+                if "bid_modifier" in location:
+                    criterion.bid_modifier = location["bid_modifier"]
+
+                operations.append(criterion_operation)
+                print(f"   📍 Location: {location.get('name', location['geo_target_constant'])} (ID: {location['geo_target_constant']})")
+
+        # Process language targeting
+        if "languages" in targeting_data and targeting_data["languages"]:
+            print(f"🗣️  Adding {len(targeting_data['languages'])} language targets...")
+
+            for language in targeting_data["languages"]:
+                criterion_operation = client.get_type("CampaignCriterionOperation")
+                criterion = criterion_operation.create
+
+                criterion.campaign = campaign_resource_name
+                criterion.language.language_constant = language["language_constant"]
+
+                operations.append(criterion_operation)
+                print(f"   🗣️  Language: {language.get('name', language['language_constant'])} (ID: {language['language_constant']})")
+
+        # Process negative location targeting (exclusions)
+        if "negative_locations" in targeting_data and targeting_data["negative_locations"]:
+            print(f"🚫 Adding {len(targeting_data['negative_locations'])} location exclusions...")
+
+            for neg_location in targeting_data["negative_locations"]:
+                criterion_operation = client.get_type("CampaignCriterionOperation")
+                criterion = criterion_operation.create
+
+                criterion.campaign = campaign_resource_name
+                criterion.negative = True
+                criterion.location.geo_target_constant = neg_location["geo_target_constant"]
+
+                operations.append(criterion_operation)
+                print(f"   🚫 Exclude: {neg_location.get('name', neg_location['geo_target_constant'])} (ID: {neg_location['geo_target_constant']})")
+
+        if not operations:
+            return "⚠️  No targeting criteria provided. Please specify locations, languages, or negative_locations."
+
+        # Execute all targeting operations
+        print(f"\n🔄 Applying {len(operations)} targeting criteria to campaign...")
+        response = campaign_criterion_service.mutate_campaign_criteria(
+            customer_id=customer_id, operations=operations
+        )
+
+        results = [result.resource_name for result in response.results]
+
+        print(f"✅ Successfully added {len(results)} targeting criteria to campaign")
+
+        # Return detailed results
+        return {
+            "campaign_resource_name": campaign_resource_name,
+            "targeting_criteria_added": results,
+            "summary": {
+                "total_criteria": len(results),
+                "locations": len(targeting_data.get("locations", [])),
+                "languages": len(targeting_data.get("languages", [])),
+                "negative_locations": len(targeting_data.get("negative_locations", []))
+            }
+        }
+
+    except GoogleAdsException as ex:
+        error_details = []
+        for error in ex.failure.errors:
+            error_details.append(f"   - {error.message}")
+
+        print(f"❌ Failed to update campaign targeting:")
+        for detail in error_details:
+            print(detail)
+
+        return f"❌ Failed to update campaign targeting: {ex}"
+
 def create_ad_group(client, customer_id, campaign_resource_name, ad_group_name, cpc_bid_micros):
     """Create a new ad group within an existing campaign."""
     from google.ads.googleads.errors import GoogleAdsException
@@ -876,6 +967,13 @@ def perform_campaign_operations(customer_id, operation_type, **kwargs):
             kwargs["strategy_type"]
         )
 
+    elif operation_type == "update_targeting":
+        return update_campaign_targeting(
+            client, customer_id,
+            kwargs["campaign_resource_name"],
+            kwargs["targeting_data"]
+        )
+
     elif operation_type == "update_keyword_status":
         return update_keyword_status(
             client, customer_id,
@@ -956,7 +1054,7 @@ def main():
     parser.add_argument('--customer-id', required=True, help='Google Ads customer ID')
     parser.add_argument('--operation', required=True,
                        choices=[
-                           'update_campaign_status', 'update_campaign_budget', 'update_bidding_strategy',
+                           'update_campaign_status', 'update_campaign_budget', 'update_bidding_strategy', 'update_targeting',
                            'update_keyword_status', 'update_keyword_bid',
                            'update_ad_status', 'add_keywords', 'add_negative_keywords',
                            'pause_underperforming', 'optimize_bids', 'bulk_budget_update',
@@ -971,6 +1069,7 @@ def main():
     parser.add_argument('--strategy-type',
                        choices=['MANUAL_CPC', 'ENHANCED_CPC', 'MAXIMIZE_CLICKS', 'MAXIMIZE_CONVERSIONS', 'MAXIMIZE_CONVERSION_VALUE'],
                        help='Bidding strategy type')
+    parser.add_argument('--targeting-file', help='JSON file with targeting data (locations, languages, negative_locations)')
 
     # Keyword operations
     parser.add_argument('--keyword-resource-name', help='Keyword resource name')
@@ -1029,6 +1128,21 @@ def main():
             "campaign_resource_name": args.campaign_resource_name,
             "strategy_type": args.strategy_type
         }
+
+    elif args.operation == 'update_targeting':
+        if not args.campaign_resource_name or not args.targeting_file:
+            print("❌ --campaign-resource-name and --targeting-file required")
+            return
+        try:
+            with open(args.targeting_file, 'r') as f:
+                targeting_data = json.load(f)
+            kwargs = {
+                "campaign_resource_name": args.campaign_resource_name,
+                "targeting_data": targeting_data
+            }
+        except Exception as e:
+            print(f"❌ Failed to load targeting file: {e}")
+            return
 
     elif args.operation == 'update_keyword_status':
         if not args.keyword_resource_name or not args.status:

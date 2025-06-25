@@ -170,6 +170,77 @@ class CampaignOperations:
         except Exception as e:
             raise RuntimeError(f"Failed to update campaign bidding strategy: {e}")
 
+    def update_campaign_targeting(self, campaign_resource_name: str, targeting_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Add location and language targeting to an existing campaign."""
+        try:
+            from google.ads.googleads.errors import GoogleAdsException
+
+            campaign_criterion_service = self.client.get_service("CampaignCriterionService")
+            operations = []
+
+            # Process location targeting
+            if "locations" in targeting_data and targeting_data["locations"]:
+                for location in targeting_data["locations"]:
+                    criterion_operation = self.client.get_type("CampaignCriterionOperation")
+                    criterion = criterion_operation.create
+
+                    criterion.campaign = campaign_resource_name
+                    criterion.location.geo_target_constant = location["geo_target_constant"]
+
+                    # Set bid modifier if provided
+                    if "bid_modifier" in location:
+                        criterion.bid_modifier = location["bid_modifier"]
+
+                    operations.append(criterion_operation)
+
+            # Process language targeting
+            if "languages" in targeting_data and targeting_data["languages"]:
+                for language in targeting_data["languages"]:
+                    criterion_operation = self.client.get_type("CampaignCriterionOperation")
+                    criterion = criterion_operation.create
+
+                    criterion.campaign = campaign_resource_name
+                    criterion.language.language_constant = language["language_constant"]
+
+                    operations.append(criterion_operation)
+
+            # Process negative location targeting (exclusions)
+            if "negative_locations" in targeting_data and targeting_data["negative_locations"]:
+                for neg_location in targeting_data["negative_locations"]:
+                    criterion_operation = self.client.get_type("CampaignCriterionOperation")
+                    criterion = criterion_operation.create
+
+                    criterion.campaign = campaign_resource_name
+                    criterion.negative = True
+                    criterion.location.geo_target_constant = neg_location["geo_target_constant"]
+
+                    operations.append(criterion_operation)
+
+            if not operations:
+                raise ValueError("No targeting criteria provided. Please specify locations, languages, or negative_locations.")
+
+            # Execute all targeting operations
+            response = campaign_criterion_service.mutate_campaign_criteria(
+                customer_id=self.customer_id, operations=operations
+            )
+
+            results = [result.resource_name for result in response.results]
+
+            # Return detailed results
+            return {
+                "campaign_resource_name": campaign_resource_name,
+                "targeting_criteria_added": results,
+                "summary": {
+                    "total_criteria": len(results),
+                    "locations": len(targeting_data.get("locations", [])),
+                    "languages": len(targeting_data.get("languages", [])),
+                    "negative_locations": len(targeting_data.get("negative_locations", []))
+                }
+            }
+
+        except Exception as e:
+            raise RuntimeError(f"Failed to update campaign targeting: {e}")
+
     def add_keywords_to_ad_group(self, ad_group_resource_name: str,
                                keywords_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Add keywords to an ad group with individual error handling."""

@@ -1,0 +1,34 @@
+{
+  "locations": [
+    {
+      "geo_target_constant": "geoTargetConstants/1023191",
+      "name": "New York, NY, USA",
+      "bid_modifier": 1.2
+    },
+    {
+      "geo_target_constant": "geoTargetConstants/1023768",
+      "name": "Los Angeles, CA, USA",
+      "bid_modifier": 1.1
+    },
+    {
+      "geo_target_constant": "geoTargetConstants/1014044",
+      "name": "Chicago, IL, USA"
+    }
+  ],
+  "languages": [
+    {
+      "language_constant": "languageConstants/1000",
+      "name": "English"
+    },
+    {
+      "language_constant": "languageConstants/1003",
+      "name": "Spanish"
+    }
+  ],
+  "negative_locations": [
+    {
+      "geo_target_constant": "geoTargetConstants/1014221",
+      "name": "Detroit, MI, USA"
+    }
+  ]
+}

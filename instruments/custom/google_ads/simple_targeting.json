@@ -1,0 +1,14 @@
+{
+  "locations": [
+    {
+      "geo_target_constant": "geoTargetConstants/2840",
+      "name": "United States"
+    }
+  ],
+  "languages": [
+    {
+      "language_constant": "languageConstants/1000",
+      "name": "English"
+    }
+  ]
+}
