@@ -164,7 +164,7 @@ python /a0/instruments/custom/google_ads/run_query.py --customer-id "3045806466"
 #### Campaign Performance (Requires Date Range)
 ```bash
 # Last 30 days performance
-python /a0/instruments/custom/google_ads/run_query.py --customer-id "3045806466" --query "SELECT campaign.name, metrics.clicks, metrics.impressions, metrics.cost_micros FROM campaign WHERE segments.date DURING LAST_30DAYS ORDER BY metrics.clicks DESC LIMIT 10" --format table
+python /a0/instruments/custom/google_ads/run_query.py --customer-id "3045806466" --query "SELECT campaign.name, metrics.clicks, metrics.impressions, metrics.cost_micros FROM campaign WHERE segments.date DURING LAST_30_DAYS ORDER BY metrics.clicks DESC LIMIT 10" --format table
 
 # Specific date range
 python /a0/instruments/custom/google_ads/run_query.py --customer-id "3045806466" --query "SELECT campaign.name, metrics.clicks, metrics.impressions FROM campaign WHERE segments.date >= '2025-05-01' AND segments.date <= '2025-06-24' ORDER BY metrics.clicks DESC LIMIT 10" --format table
@@ -176,7 +176,7 @@ python /a0/instruments/custom/google_ads/run_query.py --customer-id "3045806466"
 python /a0/instruments/custom/google_ads/run_query.py --customer-id "3045806466" --query "SELECT campaign.name, ad_group.name, ad_group.status FROM ad_group LIMIT 10" --format table
 
 # Ad group performance
-python /a0/instruments/custom/google_ads/run_query.py --customer-id "3045806466" --query "SELECT ad_group.name, metrics.clicks, metrics.impressions FROM ad_group WHERE segments.date DURING LAST_7DAYS LIMIT 10" --format csv
+python /a0/instruments/custom/google_ads/run_query.py --customer-id "3045806466" --query "SELECT ad_group.name, metrics.clicks, metrics.impressions FROM ad_group WHERE segments.date DURING LAST_7_DAYS LIMIT 10" --format csv
 ```
 
 #### Troubleshooting Empty Results
