@@ -219,7 +219,6 @@ def analyze_keyword_competition(customer_id, days=30):
         campaign.name,
         metrics.search_impression_share,
         metrics.search_rank_lost_impression_share,
-        metrics.search_budget_lost_impression_share,
         metrics.top_impression_percentage,
         metrics.absolute_top_impression_percentage,
         metrics.impressions,

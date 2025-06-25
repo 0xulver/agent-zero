@@ -28,7 +28,7 @@ def install_dependencies():
             else:
                 __import__(package.lower().replace('-', '_'))
         except ImportError:
-            print(f"Installing {package}...")
+            print(f"Installing {package}...", file=sys.stderr)
             subprocess.check_call([sys.executable, '-m', 'pip', 'install', package, '--quiet'])
 
 # Install dependencies first
@@ -48,23 +48,37 @@ CONFIG_PATHS = [
 ]
 API_VERSION = "v18"
 
-def load_config():
+def load_config(output_format="table"):
     """Load the google-ads.yaml configuration file from multiple possible locations."""
     for config_path in CONFIG_PATHS:
         try:
             with open(config_path, 'r') as file:
                 config = yaml.safe_load(file)
-            print(f"✅ Loaded configuration from {config_path}")
+            # Only print status for non-JSON formats
+            if output_format.lower() != "json":
+                print(f"✅ Loaded configuration from {config_path}")
+            else:
+                print(f"✅ Loaded configuration from {config_path}", file=sys.stderr)
             return config, config_path
         except FileNotFoundError:
             continue
         except Exception as e:
-            print(f"❌ Error loading config from {config_path}: {e}")
+            error_msg = f"❌ Error loading config from {config_path}: {e}"
+            if output_format.lower() != "json":
+                print(error_msg)
+            else:
+                print(error_msg, file=sys.stderr)
             continue
 
-    print(f"❌ Configuration file not found in any of these locations:")
-    for path in CONFIG_PATHS:
-        print(f"   - {path}")
+    error_msg = f"❌ Configuration file not found in any of these locations:"
+    if output_format.lower() != "json":
+        print(error_msg)
+        for path in CONFIG_PATHS:
+            print(f"   - {path}")
+    else:
+        print(error_msg, file=sys.stderr)
+        for path in CONFIG_PATHS:
+            print(f"   - {path}", file=sys.stderr)
     return None, None
 
 def format_customer_id(customer_id):
@@ -89,7 +103,7 @@ def execute_gaql_query(customer_id, query, output_format="table", debug=False):
     """
     try:
         # Load configuration
-        config, config_file = load_config()
+        config, config_file = load_config(output_format)
         if not config:
             return "❌ Failed to load configuration"
         
@@ -102,7 +116,11 @@ def execute_gaql_query(customer_id, query, output_format="table", debug=False):
         # Initialize Google Ads client using the found config file
         try:
             client = GoogleAdsClient.load_from_storage(config_file)
-            print(f"✅ Google Ads client initialized from {config_file}")
+            # Only print status for non-JSON formats
+            if output_format.lower() != "json":
+                print(f"✅ Google Ads client initialized from {config_file}")
+            else:
+                print(f"✅ Google Ads client initialized from {config_file}", file=sys.stderr)
         except Exception as e:
             return f"❌ Failed to initialize Google Ads client: {e}"
         
@@ -112,9 +130,15 @@ def execute_gaql_query(customer_id, query, output_format="table", debug=False):
         # Execute the query
         ga_service = client.get_service("GoogleAdsService")
         
-        print(f"🔄 Executing query for customer {formatted_customer_id}...")
-        print(f"Query: {query.strip()}")
-        print()
+        # Only print status messages for non-JSON formats
+        if output_format.lower() != "json":
+            print(f"🔄 Executing query for customer {formatted_customer_id}...")
+            print(f"Query: {query.strip()}")
+            print()
+        else:
+            # For JSON format, send status to stderr
+            print(f"🔄 Executing query for customer {formatted_customer_id}...", file=sys.stderr)
+            print(f"Query: {query.strip()}", file=sys.stderr)
         
         # Execute the search
         search_request = client.get_type("SearchGoogleAdsRequest")
@@ -127,13 +151,13 @@ def execute_gaql_query(customer_id, query, output_format="table", debug=False):
         if debug:
             try:
                 first_row = next(iter(results))
-                print(f"Debug: First row structure: {dir(first_row)}")
+                print(f"Debug: First row structure: {dir(first_row)}", file=sys.stderr)
                 if hasattr(first_row, 'campaign'):
-                    print(f"Debug: Campaign object: {dir(first_row.campaign)}")
+                    print(f"Debug: Campaign object: {dir(first_row.campaign)}", file=sys.stderr)
                     if hasattr(first_row.campaign, 'name'):
-                        print(f"Debug: Campaign name: {first_row.campaign.name}")
+                        print(f"Debug: Campaign name: {first_row.campaign.name}", file=sys.stderr)
             except StopIteration:
-                print("Debug: No results found")
+                print("Debug: No results found", file=sys.stderr)
             # Reset results iterator
             results = ga_service.search(request=search_request)
 
@@ -272,7 +296,7 @@ def get_nested_field_value_improved(row, field_path, debug=False):
         parts = [part.strip() for part in field_path.split('.')]
 
         if debug:
-            print(f"Debug: Extracting field path: {field_path} -> {parts}")
+            print(f"Debug: Extracting field path: {field_path} -> {parts}", file=sys.stderr)
 
         current = row
 
@@ -281,7 +305,7 @@ def get_nested_field_value_improved(row, field_path, debug=False):
             part_lower = part.lower()
 
             if debug:
-                print(f"Debug: Looking for part '{part}' in object with attributes: {[attr for attr in dir(current) if not attr.startswith('_')]}")
+                print(f"Debug: Looking for part '{part}' in object with attributes: {[attr for attr in dir(current) if not attr.startswith('_')]}", file=sys.stderr)
 
             if hasattr(current, part_lower):
                 current = getattr(current, part_lower)
@@ -289,7 +313,7 @@ def get_nested_field_value_improved(row, field_path, debug=False):
                 current = getattr(current, part)
             else:
                 if debug:
-                    print(f"Debug: Part '{part}' not found")
+                    print(f"Debug: Part '{part}' not found", file=sys.stderr)
                 return "N/A"
 
         # Handle different types of values
@@ -302,12 +326,12 @@ def get_nested_field_value_improved(row, field_path, debug=False):
         else:
             result = str(current)
             if debug:
-                print(f"Debug: Final value for {field_path}: {result}")
+                print(f"Debug: Final value for {field_path}: {result}", file=sys.stderr)
             return result
 
     except Exception as e:
         if debug:
-            print(f"Debug: Error getting field {field_path}: {e}")
+            print(f"Debug: Error getting field {field_path}: {e}", file=sys.stderr)
         return "N/A"
 
 def get_nested_field_value(row, field_path):
@@ -325,8 +349,13 @@ def main():
 
     args = parser.parse_args()
 
-    print("🚀 Google Ads GAQL Query Runner")
-    print("=" * 35)
+    # Only print header for non-JSON formats
+    if args.format.lower() != "json":
+        print("🚀 Google Ads GAQL Query Runner")
+        print("=" * 35)
+    else:
+        print("🚀 Google Ads GAQL Query Runner", file=sys.stderr)
+        print("=" * 35, file=sys.stderr)
 
     result = execute_gaql_query(args.customer_id, args.query, args.format, args.debug)
     print(result)
