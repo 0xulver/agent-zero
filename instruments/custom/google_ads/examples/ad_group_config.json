@@ -1,0 +1,54 @@
+{
+  "name": "Charisma Training - Advanced",
+  "cpc_bid_micros": 2000000,
+  "keywords": [
+    {
+      "text": "advanced charisma training",
+      "match_type": "EXACT",
+      "bid_micros": 2500000
+    },
+    {
+      "text": "executive presence coaching",
+      "match_type": "PHRASE",
+      "bid_micros": 2200000
+    },
+    {
+      "text": "leadership charisma development",
+      "match_type": "PHRASE",
+      "bid_micros": 2000000
+    },
+    {
+      "text": "professional charisma skills",
+      "match_type": "BROAD",
+      "bid_micros": 1800000
+    },
+    {
+      "text": "charisma masterclass",
+      "match_type": "EXACT",
+      "bid_micros": 2300000
+    }
+  ],
+  "ads": [
+    {
+      "headlines": [
+        "Master Advanced Charisma",
+        "Executive Presence Training",
+        "Transform Your Leadership",
+        "Charisma Foundation Course",
+        "Professional Development",
+        "Leadership Excellence",
+        "Charisma Mastery Program",
+        "Executive Coaching",
+        "Advanced Communication",
+        "Leadership Transformation"
+      ],
+      "descriptions": [
+        "Develop executive presence and charismatic leadership skills with our advanced training program.",
+        "Join thousands of professionals who've transformed their careers through charisma development.",
+        "Expert-led training in advanced charisma techniques for leaders and executives.",
+        "Proven methods to build authentic charisma and commanding presence in any situation."
+      ],
+      "final_url": "https://thecharismafoundation.org/advanced-training"
+    }
+  ]
+}

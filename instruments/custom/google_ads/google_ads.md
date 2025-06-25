@@ -313,6 +313,12 @@ python /a0/instruments/custom/google_ads/campaign_operations.py --customer-id "3
 
 # Bulk update campaign budgets
 python /a0/instruments/custom/google_ads/campaign_operations.py --customer-id "3045806466" --operation bulk_budget_update --budget-adjustments-file budget_changes.json
+
+# Create new ad group in existing campaign
+python /a0/instruments/custom/google_ads/campaign_operations.py --customer-id "3045806466" --operation create_ad_group --campaign-resource-name "customers/3045806466/campaigns/12345" --ad-group-name "Advanced Charisma Training" --bid-micros 2000000
+
+# Create complete ad group with keywords and ads
+python /a0/instruments/custom/google_ads/campaign_operations.py --customer-id "3045806466" --operation create_ad_group_with_content --campaign-resource-name "customers/3045806466/campaigns/12345" --ad-group-config-file ad_group_config.json
 ```
 
 ## Complete Campaign Creation Workflow
@@ -370,6 +376,7 @@ python /a0/instruments/custom/google_ads/keyword_research.py --customer-id "3045
 - ✅ **Industry-specific templates**
 - ✅ **🆕 FULL CAMPAIGN MANAGEMENT OPERATIONS**
 - ✅ **🆕 Update campaign status, budgets, and settings**
+- ✅ **🆕 Create new ad groups in existing campaigns**
 - ✅ **🆕 Manage keywords (pause, enable, update bids, add/remove)**
 - ✅ **🆕 Manage ads (pause, enable, update status)**
 - ✅ **🆕 Negative keyword management**

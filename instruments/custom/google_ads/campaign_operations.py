@@ -215,82 +215,331 @@ def update_ad_status(client, customer_id, ad_resource_name, status):
     except GoogleAdsException as ex:
         return f"❌ Failed to update ad status: {ex}"
 
+def get_keyword_match_type_enum(client, match_type_string):
+    """Convert match type string to proper Google Ads API enum."""
+    match_type = match_type_string.upper() if match_type_string else "BROAD"
+
+    print(f"DEBUG: Converting match type string '{match_type_string}' -> '{match_type}'")
+
+    if match_type == "EXACT":
+        enum_result = client.enums.KeywordMatchTypeEnum.EXACT
+    elif match_type == "PHRASE":
+        enum_result = client.enums.KeywordMatchTypeEnum.PHRASE
+    elif match_type == "BROAD":
+        enum_result = client.enums.KeywordMatchTypeEnum.BROAD
+    else:
+        # Default to BROAD if unknown match type
+        print(f"⚠️ Unknown match type '{match_type}', defaulting to BROAD")
+        enum_result = client.enums.KeywordMatchTypeEnum.BROAD
+
+    print(f"DEBUG: Enum result type: {type(enum_result)}, value: {enum_result}")
+    print(f"DEBUG: Enum integer value: {int(enum_result)}")
+    return enum_result
+
+def check_campaign_match_type_restrictions(client, customer_id, ad_group_resource_name):
+    """Check if campaign settings restrict match types to BROAD only."""
+    try:
+        # Extract campaign ID from ad group resource name
+        # Format: customers/{customer_id}/adGroups/{ad_group_id}
+        ad_group_id = ad_group_resource_name.split('/')[-1]
+
+        # Get campaign info from ad group
+        googleads_service = client.get_service("GoogleAdsService")
+        query = f"""
+        SELECT
+            campaign.id,
+            campaign.name,
+            campaign.bidding_strategy_type,
+            campaign.bidding_strategy_system_status,
+            ad_group.id,
+            ad_group.name
+        FROM ad_group
+        WHERE ad_group.id = {ad_group_id}
+        """
+
+        search_request = client.get_type("SearchGoogleAdsRequest")
+        search_request.customer_id = customer_id
+        search_request.query = query
+
+        response = googleads_service.search(request=search_request)
+
+        for row in response:
+            campaign_id = row.campaign.id
+            campaign_name = row.campaign.name
+            bid_strategy = row.campaign.bidding_strategy_type
+
+            print(f"📊 Campaign Analysis:")
+            print(f"   Campaign: {campaign_name} (ID: {campaign_id})")
+            print(f"   Bid Strategy: {bid_strategy}")
+
+            # Check if bid strategy forces broad match
+            conversion_focused_strategies = [
+                "MAXIMIZE_CONVERSIONS",
+                "MAXIMIZE_CONVERSION_VALUE",
+                "TARGET_CPA",
+                "TARGET_ROAS"
+            ]
+
+            if str(bid_strategy) in conversion_focused_strategies:
+                print(f"⚠️  WARNING: Campaign uses {bid_strategy} which may have 'Broad Match Keywords Setting' enabled")
+                print(f"   This forces ALL keywords to behave as BROAD match regardless of specified match type")
+                print(f"   PHRASE and EXACT match types will be automatically converted to BROAD")
+                return True, campaign_name, str(bid_strategy)
+            else:
+                print(f"✅ Campaign uses {bid_strategy} - PHRASE and EXACT match types should work")
+                return False, campaign_name, str(bid_strategy)
+
+        return False, "Unknown", "Unknown"
+
+    except Exception as e:
+        print(f"⚠️  Could not check campaign settings: {e}")
+        print(f"   Proceeding with BROAD match conversion as safety measure")
+        return True, "Unknown", "Unknown"
+
 def add_keywords_to_ad_group(client, customer_id, ad_group_resource_name, keywords_data):
     """Add new keywords to an existing ad group."""
     from google.ads.googleads.errors import GoogleAdsException
-    
+
     try:
+        # First, check campaign settings for match type restrictions
+        has_restrictions, campaign_name, bid_strategy = check_campaign_match_type_restrictions(
+            client, customer_id, ad_group_resource_name
+        )
+
         ad_group_criterion_service = client.get_service("AdGroupCriterionService")
         operations = []
-        
-        for keyword_data in keywords_data:
+
+        print(f"\n🔧 Processing {len(keywords_data)} keywords for campaign: {campaign_name}")
+
+        for i, keyword_data in enumerate(keywords_data):
+            print(f"\n--- Keyword {i+1}/{len(keywords_data)} ---")
             criterion_operation = client.get_type("AdGroupCriterionOperation")
             criterion = criterion_operation.create
-            
-            criterion.ad_group = ad_group_resource_name
-            criterion.keyword.text = keyword_data["text"]
-            
-            # Set match type
-            match_type = keyword_data.get("match_type", "BROAD").upper()
-            if match_type == "EXACT":
-                criterion.keyword.match_type = client.enums.KeywordMatchTypeEnum.EXACT
-            elif match_type == "PHRASE":
-                criterion.keyword.match_type = client.enums.KeywordMatchTypeEnum.PHRASE
+
+            # Set match type based on campaign analysis
+            match_type_string = keyword_data.get("match_type", "BROAD")
+            original_keyword = keyword_data["text"]
+
+            if has_restrictions and match_type_string.upper() in ["EXACT", "PHRASE"]:
+                print(f"🔄 CAMPAIGN RESTRICTION: {match_type_string} → BROAD conversion required")
+                print(f"   Reason: Campaign '{campaign_name}' uses {bid_strategy}")
+                print(f"   This bid strategy enables 'Broad Match Keywords Setting'")
+                print(f"   Original: '{original_keyword}' ({match_type_string})")
+
+                if match_type_string.upper() == "EXACT":
+                    # For EXACT keywords, add quotes to maintain precision with BROAD match
+                    keyword_text = f'"{original_keyword}"'
+                    print(f"   Converted: '{keyword_text}' (BROAD with quotes for precision)")
+                else:
+                    # For PHRASE keywords, use as-is with BROAD match
+                    keyword_text = original_keyword
+                    print(f"   Converted: '{keyword_text}' (BROAD)")
+
+                criterion.keyword.match_type = 4  # BROAD
+
+            elif not has_restrictions and match_type_string.upper() in ["EXACT", "PHRASE"]:
+                print(f"✅ ATTEMPTING: {match_type_string} match type (campaign allows it)")
+                print(f"   Keyword: '{original_keyword}' ({match_type_string})")
+                keyword_text = original_keyword
+
+                # Try to use the requested match type
+                if match_type_string.upper() == "EXACT":
+                    criterion.keyword.match_type = 2  # EXACT
+                elif match_type_string.upper() == "PHRASE":
+                    criterion.keyword.match_type = 3  # PHRASE
+                else:
+                    criterion.keyword.match_type = 4  # BROAD
+
             else:
-                criterion.keyword.match_type = client.enums.KeywordMatchTypeEnum.BROAD
-            
+                # BROAD match type - always works
+                print(f"✅ BROAD match type: '{original_keyword}'")
+                keyword_text = original_keyword
+                criterion.keyword.match_type = 4  # BROAD
+
+            criterion.keyword.text = keyword_text
+            criterion.ad_group = ad_group_resource_name
+
             # Set bid if provided
             if "bid_micros" in keyword_data:
                 criterion.cpc_bid_micros = keyword_data["bid_micros"]
-            
+
             operations.append(criterion_operation)
-        
-        response = ad_group_criterion_service.mutate_ad_group_criteria(
-            customer_id=customer_id, operations=operations
-        )
-        
-        print(f"✅ Added {len(response.results)} keywords to ad group")
-        return [result.resource_name for result in response.results]
-        
+
+        # WORKAROUND: Process one operation at a time to avoid library serialization bug
+        results = []
+        for i, operation in enumerate(operations):
+            print(f"DEBUG: Sending operation {i+1}/{len(operations)} to API...")
+            try:
+                response = ad_group_criterion_service.mutate_ad_group_criteria(
+                    customer_id=customer_id, operations=[operation]
+                )
+                results.extend([result.resource_name for result in response.results])
+                print(f"✅ Successfully added keyword {i+1}")
+            except Exception as e:
+                print(f"❌ Failed to add keyword {i+1}: {e}")
+                return f"❌ Failed to add keyword {i+1}: {e}"
+
+        print(f"✅ Added {len(results)} keywords to ad group")
+        return results
+
     except GoogleAdsException as ex:
         return f"❌ Failed to add keywords: {ex}"
 
 def add_negative_keywords(client, customer_id, campaign_resource_name, negative_keywords):
     """Add negative keywords to a campaign."""
     from google.ads.googleads.errors import GoogleAdsException
-    
+
     try:
         campaign_criterion_service = client.get_service("CampaignCriterionService")
         operations = []
-        
+
         for neg_keyword in negative_keywords:
             criterion_operation = client.get_type("CampaignCriterionOperation")
             criterion = criterion_operation.create
-            
+
             criterion.campaign = campaign_resource_name
             criterion.negative = True
             criterion.keyword.text = neg_keyword["text"]
-            
-            # Set match type
-            match_type = neg_keyword.get("match_type", "BROAD").upper()
-            if match_type == "EXACT":
-                criterion.keyword.match_type = client.enums.KeywordMatchTypeEnum.EXACT
-            elif match_type == "PHRASE":
-                criterion.keyword.match_type = client.enums.KeywordMatchTypeEnum.PHRASE
+
+            # Set match type using direct integer assignment like debug script
+            match_type_string = neg_keyword.get("match_type", "BROAD")
+            if match_type_string.upper() == "EXACT":
+                criterion.keyword.match_type = 2
+            elif match_type_string.upper() == "PHRASE":
+                criterion.keyword.match_type = 3
+            elif match_type_string.upper() == "BROAD":
+                criterion.keyword.match_type = 4
             else:
-                criterion.keyword.match_type = client.enums.KeywordMatchTypeEnum.BROAD
-            
+                criterion.keyword.match_type = 4  # Default to BROAD
+
             operations.append(criterion_operation)
-        
+
         response = campaign_criterion_service.mutate_campaign_criteria(
             customer_id=customer_id, operations=operations
         )
-        
+
         print(f"✅ Added {len(response.results)} negative keywords to campaign")
         return [result.resource_name for result in response.results]
 
     except GoogleAdsException as ex:
         return f"❌ Failed to add negative keywords: {ex}"
+
+def create_ad_group(client, customer_id, campaign_resource_name, ad_group_name, cpc_bid_micros):
+    """Create a new ad group within an existing campaign."""
+    from google.ads.googleads.errors import GoogleAdsException
+
+    try:
+        ad_group_service = client.get_service("AdGroupService")
+        ad_group_operation = client.get_type("AdGroupOperation")
+
+        ad_group = ad_group_operation.create
+        ad_group.name = ad_group_name
+        ad_group.campaign = campaign_resource_name
+        ad_group.type_ = client.enums.AdGroupTypeEnum.SEARCH_STANDARD
+        ad_group.status = client.enums.AdGroupStatusEnum.ENABLED
+        ad_group.cpc_bid_micros = cpc_bid_micros
+
+        # Submit ad group creation
+        ad_group_response = ad_group_service.mutate_ad_groups(
+            customer_id=customer_id, operations=[ad_group_operation]
+        )
+        ad_group_resource_name = ad_group_response.results[0].resource_name
+        print(f"✅ Created ad group: {ad_group_resource_name}")
+
+        return ad_group_resource_name
+
+    except GoogleAdsException as ex:
+        return f"❌ Ad group creation failed: {ex}"
+
+def create_ad_group_with_content(client, customer_id, campaign_resource_name, ad_group_config):
+    """Create a complete ad group with keywords and ads in an existing campaign."""
+    from google.ads.googleads.errors import GoogleAdsException
+
+    try:
+        # Step 1: Create the ad group
+        ad_group_resource_name = create_ad_group(
+            client, customer_id, campaign_resource_name,
+            ad_group_config["name"], ad_group_config["cpc_bid_micros"]
+        )
+
+        if ad_group_resource_name.startswith("❌"):
+            return ad_group_resource_name
+
+        created_resources = {
+            "ad_group": ad_group_resource_name,
+            "keywords": [],
+            "ads": []
+        }
+
+        # Step 2: Add keywords if provided
+        if "keywords" in ad_group_config and ad_group_config["keywords"]:
+            keyword_resources = add_keywords_to_ad_group(
+                client, customer_id, ad_group_resource_name,
+                ad_group_config["keywords"]
+            )
+            if isinstance(keyword_resources, list):
+                created_resources["keywords"] = keyword_resources
+            else:
+                print(f"⚠️ Warning: {keyword_resources}")
+
+        # Step 3: Create ads if provided
+        if "ads" in ad_group_config and ad_group_config["ads"]:
+            for ad_data in ad_group_config["ads"]:
+                ad_resource = create_responsive_search_ad(
+                    client, customer_id, ad_group_resource_name, ad_data
+                )
+                if ad_resource and not ad_resource.startswith("❌"):
+                    created_resources["ads"].append(ad_resource)
+                else:
+                    print(f"⚠️ Warning: {ad_resource}")
+
+        print(f"✅ Created complete ad group with {len(created_resources['keywords'])} keywords and {len(created_resources['ads'])} ads")
+        return created_resources
+
+    except Exception as ex:
+        return f"❌ Failed to create ad group with content: {ex}"
+
+def create_responsive_search_ad(client, customer_id, ad_group_resource_name, ad_data):
+    """Create a responsive search ad in an ad group."""
+    from google.ads.googleads.errors import GoogleAdsException
+
+    try:
+        ad_group_ad_service = client.get_service("AdGroupAdService")
+        ad_group_ad_operation = client.get_type("AdGroupAdOperation")
+
+        ad_group_ad = ad_group_ad_operation.create
+        ad_group_ad.ad_group = ad_group_resource_name
+        ad_group_ad.status = client.enums.AdGroupAdStatusEnum.ENABLED
+
+        # Create responsive search ad
+        ad_group_ad.ad.type_ = client.enums.AdTypeEnum.RESPONSIVE_SEARCH_AD
+
+        # Add headlines
+        for headline_text in ad_data.get("headlines", []):
+            headline = client.get_type("AdTextAsset")
+            headline.text = headline_text[:30]  # Google Ads limit
+            ad_group_ad.ad.responsive_search_ad.headlines.append(headline)
+
+        # Add descriptions
+        for description_text in ad_data.get("descriptions", []):
+            description = client.get_type("AdTextAsset")
+            description.text = description_text[:90]  # Google Ads limit
+            ad_group_ad.ad.responsive_search_ad.descriptions.append(description)
+
+        # Set final URLs
+        ad_group_ad.ad.final_urls.append(ad_data.get("final_url", "https://example.com"))
+
+        # Submit ad creation
+        ad_response = ad_group_ad_service.mutate_ad_group_ads(
+            customer_id=customer_id, operations=[ad_group_ad_operation]
+        )
+
+        ad_resource_name = ad_response.results[0].resource_name
+        print(f"✅ Created responsive search ad: {ad_resource_name}")
+        return ad_resource_name
+
+    except GoogleAdsException as ex:
+        return f"❌ Ad creation failed: {ex}"
 
 def pause_underperforming_keywords(client, customer_id, min_impressions=100, max_ctr=0.02, days=30):
     """Automatically pause underperforming keywords based on performance thresholds."""
@@ -524,6 +773,21 @@ def perform_campaign_operations(customer_id, operation_type, **kwargs):
             kwargs["budget_adjustments"]
         )
 
+    elif operation_type == "create_ad_group":
+        return create_ad_group(
+            client, customer_id,
+            kwargs["campaign_resource_name"],
+            kwargs["ad_group_name"],
+            kwargs["cpc_bid_micros"]
+        )
+
+    elif operation_type == "create_ad_group_with_content":
+        return create_ad_group_with_content(
+            client, customer_id,
+            kwargs["campaign_resource_name"],
+            kwargs["ad_group_config"]
+        )
+
     else:
         return f"❌ Unknown operation type: {operation_type}"
 
@@ -536,7 +800,8 @@ def main():
                            'update_campaign_status', 'update_campaign_budget',
                            'update_keyword_status', 'update_keyword_bid',
                            'update_ad_status', 'add_keywords', 'add_negative_keywords',
-                           'pause_underperforming', 'optimize_bids', 'bulk_budget_update'
+                           'pause_underperforming', 'optimize_bids', 'bulk_budget_update',
+                           'create_ad_group', 'create_ad_group_with_content'
                        ],
                        help='Operation to perform')
 
@@ -552,6 +817,10 @@ def main():
 
     # Ad operations
     parser.add_argument('--ad-resource-name', help='Ad resource name')
+
+    # Ad group creation
+    parser.add_argument('--ad-group-name', help='Name for new ad group')
+    parser.add_argument('--ad-group-config-file', help='JSON file with complete ad group configuration')
 
     # Bulk operations
     parser.add_argument('--keywords-file', help='JSON file with keywords data')
@@ -672,6 +941,31 @@ def main():
             }
         except Exception as e:
             print(f"❌ Failed to load budget adjustments file: {e}")
+            return
+
+    elif args.operation == 'create_ad_group':
+        if not args.campaign_resource_name or not args.ad_group_name or not args.bid_micros:
+            print("❌ --campaign-resource-name, --ad-group-name, and --bid-micros required")
+            return
+        kwargs = {
+            "campaign_resource_name": args.campaign_resource_name,
+            "ad_group_name": args.ad_group_name,
+            "cpc_bid_micros": args.bid_micros
+        }
+
+    elif args.operation == 'create_ad_group_with_content':
+        if not args.campaign_resource_name or not args.ad_group_config_file:
+            print("❌ --campaign-resource-name and --ad-group-config-file required")
+            return
+        try:
+            with open(args.ad_group_config_file, 'r') as f:
+                ad_group_config = json.load(f)
+            kwargs = {
+                "campaign_resource_name": args.campaign_resource_name,
+                "ad_group_config": ad_group_config
+            }
+        except Exception as e:
+            print(f"❌ Failed to load ad group config file: {e}")
             return
 
     # Perform the operation
