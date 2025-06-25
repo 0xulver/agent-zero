@@ -121,8 +121,7 @@ def _extract_row_data(row, query: str) -> Dict[str, Any]:
             metrics = row.metrics
             metric_fields = [
                 'impressions', 'clicks', 'cost_micros', 'conversions', 'conversions_value',
-                'ctr', 'average_cpc', 'cost_per_conversion', 'search_impression_share',
-                'search_rank_lost_impression_share', 'top_impression_percentage',
+                'ctr', 'average_cpc', 'cost_per_conversion', 'top_impression_percentage',
                 'absolute_top_impression_percentage'
             ]
 

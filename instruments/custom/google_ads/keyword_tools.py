@@ -83,7 +83,8 @@ class KeywordResearcher:
             metrics.conversions,
             metrics.ctr,
             metrics.average_cpc,
-            metrics.search_impression_share
+            metrics.conversions_value,
+            ad_group_criterion.quality_info.quality_score
         FROM keyword_view
         WHERE
             segments.date >= '{start_date}'

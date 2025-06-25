@@ -71,12 +71,15 @@ def get_top_performing_keywords(customer_id, days=30, min_conversions=1):
         ad_group_criterion.keyword.text,
         ad_group_criterion.keyword.match_type,
         campaign.name,
+        ad_group.name,
         metrics.conversions,
         metrics.conversions_value,
         metrics.cost_micros,
         metrics.cost_per_conversion,
-        metrics.search_impression_share,
-        metrics.ctr
+        metrics.ctr,
+        metrics.average_cpc,
+        metrics.impressions,
+        metrics.clicks
     FROM keyword_view
     WHERE
         campaign.status = 'ENABLED'
@@ -207,8 +210,8 @@ def get_keyword_quality_scores(customer_id):
     print("📊 Getting keyword quality scores...")
     return run_gaql_query(customer_id, query)
 
-def analyze_keyword_competition(customer_id, days=30):
-    """Analyze keyword competition metrics."""
+def analyze_keyword_performance(customer_id, days=30):
+    """Analyze keyword performance metrics including CTR, quality score, and conversions."""
     end_date = datetime.now().strftime('%Y-%m-%d')
     start_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
 
@@ -217,23 +220,26 @@ def analyze_keyword_competition(customer_id, days=30):
         ad_group_criterion.keyword.text,
         ad_group_criterion.keyword.match_type,
         campaign.name,
-        metrics.search_impression_share,
-        metrics.search_rank_lost_impression_share,
-        metrics.top_impression_percentage,
-        metrics.absolute_top_impression_percentage,
+        ad_group.name,
         metrics.impressions,
-        metrics.clicks
+        metrics.clicks,
+        metrics.ctr,
+        metrics.average_cpc,
+        metrics.cost_micros,
+        metrics.conversions,
+        metrics.conversions_value,
+        ad_group_criterion.quality_info.quality_score
     FROM keyword_view
     WHERE
         segments.date >= '{start_date}'
         AND segments.date <= '{end_date}'
         AND campaign.status = 'ENABLED'
         AND metrics.impressions >= 100
-    ORDER BY metrics.search_impression_share ASC
+    ORDER BY metrics.ctr DESC, metrics.conversions DESC
     LIMIT 40
     """
 
-    print("🥊 Analyzing keyword competition metrics...")
+    print("📊 Analyzing keyword performance metrics...")
     return run_gaql_query(customer_id, query)
 
 def main():
@@ -241,8 +247,8 @@ def main():
     parser = argparse.ArgumentParser(description='Google Ads Keyword Research Tool')
     parser.add_argument('--customer-id', required=True, help='Google Ads customer ID')
     parser.add_argument('--action', required=True, 
-                       choices=['current', 'top-performing', 'underperforming', 'expensive', 
-                               'opportunities', 'quality-scores', 'competition'],
+                       choices=['current', 'top-performing', 'underperforming', 'expensive',
+                               'opportunities', 'quality-scores', 'performance'],
                        help='Type of keyword analysis to perform')
     parser.add_argument('--days', type=int, default=30, help='Number of days to analyze (default: 30)')
     parser.add_argument('--min-impressions', type=int, default=10, help='Minimum impressions filter')
@@ -267,8 +273,8 @@ def main():
         result = get_keyword_opportunities(args.customer_id, args.days)
     elif args.action == 'quality-scores':
         result = get_keyword_quality_scores(args.customer_id)
-    elif args.action == 'competition':
-        result = analyze_keyword_competition(args.customer_id, args.days)
+    elif args.action == 'performance':
+        result = analyze_keyword_performance(args.customer_id, args.days)
     
     print(result)
 
