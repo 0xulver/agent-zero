@@ -50,6 +50,9 @@ Examples:
   # Analyze existing keyword competition
   python keyword_simulator.py --customer-id 1234567890 --action competition --days 30
 
+  # Analyze competition for new keywords
+  python keyword_simulator.py --customer-id 1234567890 --action competition --keywords-file keywords.json
+
   # Find opportunity keywords
   python keyword_simulator.py --customer-id 1234567890 --action opportunities --keywords-file keywords.json
         """
@@ -112,7 +115,13 @@ Examples:
                 output = _format_simulation_table(results)
         
         elif args.action == 'competition':
-            output = analyze_keyword_competition(customer_id, args.days)
+            # Support both new keywords and existing keyword analysis
+            if keywords:
+                # Analyze competition for provided keywords (new keywords)
+                output = analyze_keyword_competition(customer_id, args.days, keywords)
+            else:
+                # Analyze existing keywords only
+                output = analyze_keyword_competition(customer_id, args.days)
         
         elif args.action == 'opportunities':
             if not keywords:
