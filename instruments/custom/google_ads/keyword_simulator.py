@@ -55,6 +55,9 @@ Examples:
 
   # Find opportunity keywords
   python keyword_simulator.py --customer-id 1234567890 --action opportunities --keywords-file keywords.json
+
+  # Research keywords from competitor URL
+  python keyword_simulator.py --customer-id 1234567890 --action research --keywords-file competitor_url.json
         """
     )
     
@@ -91,65 +94,153 @@ Examples:
             print(f"Customer ID: {customer_id}")
             print(f"Action: {args.action}")
         
-        # Get keywords list
+        # Get keywords and URLs from input
         keywords = []
+        urls = []
         if args.keywords_file:
             with open(args.keywords_file, 'r') as f:
                 keywords_data = json.load(f)
-                keywords = [kw.get('text', kw.get('keyword', '')) for kw in keywords_data if kw.get('text') or kw.get('keyword')]
+
+                # Extract keywords
+                keywords = [kw.get('text', kw.get('keyword', '')) for kw in keywords_data
+                           if kw.get('text') or kw.get('keyword')]
+
+                # Extract URLs
+                urls = [kw.get('url', '') for kw in keywords_data if kw.get('url')]
+
         elif args.keywords:
             keywords = args.keywords
         
         # Execute the requested action
         if args.action == 'simulate':
-            if not keywords:
-                print("❌ No keywords provided. Use --keywords-file or --keywords")
+            if not keywords and not urls:
+                print("❌ No keywords or URLs provided. Use --keywords-file or --keywords")
                 return 1
-            
+
             simulator = KeywordSimulator(customer_id)
-            results = simulator.simulate_keywords_from_list(keywords)
-            
+
+            # Get keywords from URLs if provided
+            all_keywords = keywords.copy() if keywords else []
+            if urls:
+                researcher = KeywordResearcher(customer_id)
+                for url in urls:
+                    url_keywords = researcher.get_keyword_ideas_from_url(url)
+                    all_keywords.extend([kw['keyword'] for kw in url_keywords])
+
+            results = simulator.simulate_keywords_from_list(all_keywords)
+
             if args.format == 'json':
                 output = json.dumps(results, indent=2)
             else:
                 output = _format_simulation_table(results)
         
         elif args.action == 'competition':
-            # Support both new keywords and existing keyword analysis
-            if keywords:
-                # Analyze competition for provided keywords (new keywords)
-                output = analyze_keyword_competition(customer_id, args.days, keywords)
+            # Support keywords, URLs, and existing keyword analysis
+            all_keywords = keywords.copy() if keywords else []
+
+            # Get keywords from URLs if provided
+            if urls:
+                researcher = KeywordResearcher(customer_id)
+                for url in urls:
+                    url_keywords = researcher.get_keyword_ideas_from_url(url)
+                    all_keywords.extend([kw['keyword'] for kw in url_keywords])
+
+            if all_keywords:
+                # Analyze competition for provided keywords/URLs (new keywords)
+                output = analyze_keyword_competition(customer_id, args.days, all_keywords)
             else:
                 # Analyze existing keywords only
                 output = analyze_keyword_competition(customer_id, args.days)
         
         elif args.action == 'opportunities':
-            if not keywords:
-                print("❌ No keywords provided. Use --keywords-file or --keywords")
+            if not keywords and not urls:
+                print("❌ No keywords or URLs provided. Use --keywords-file or --keywords")
                 return 1
-            
+
             simulator = KeywordSimulator(customer_id)
+
+            # Get keywords from URLs if provided
+            all_keywords = keywords.copy() if keywords else []
+            if urls:
+                researcher = KeywordResearcher(customer_id)
+                for url in urls:
+                    url_keywords = researcher.get_keyword_ideas_from_url(url)
+                    all_keywords.extend([kw['keyword'] for kw in url_keywords])
+
             opportunities = simulator.find_opportunity_keywords(
-                keywords, args.min_volume, args.max_competition
+                all_keywords, args.min_volume, args.max_competition
             )
-            
+
             if args.format == 'json':
                 output = json.dumps(opportunities, indent=2)
             else:
                 output = _format_opportunities_table(opportunities)
         
         elif args.action == 'research':
-            if not keywords:
-                print("❌ No keywords provided. Use --keywords-file or --keywords")
+            if not keywords and not urls:
+                print("❌ No keywords or URLs provided. Use --keywords-file or --keywords")
                 return 1
-            
+
+            print(f"🔬 Starting keyword research...")
+            if keywords:
+                print(f"📝 Keywords provided: {len(keywords)} keywords")
+                if args.verbose:
+                    print(f"   Keywords: {keywords}")
+            if urls:
+                print(f"🌐 URLs provided: {len(urls)} URLs")
+                if args.verbose:
+                    print(f"   URLs: {urls}")
+
             researcher = KeywordResearcher(customer_id)
-            ideas = researcher.get_keyword_ideas(keywords)
-            
-            if args.format == 'json':
-                output = json.dumps(ideas, indent=2)
-            else:
-                output = _format_research_table(ideas)
+            ideas = []
+
+            try:
+                if keywords and urls:
+                    # Mixed input: both keywords and URLs
+                    print(f"🔄 Processing mixed input (keywords + URLs)...")
+                    ideas = researcher.get_keyword_ideas_mixed(keywords, urls)
+                elif urls:
+                    # URL-only input
+                    print(f"🌐 Processing URL-only input...")
+                    for i, url in enumerate(urls, 1):
+                        print(f"🔍 Processing URL {i}/{len(urls)}: {url}")
+                        try:
+                            url_ideas = researcher.get_keyword_ideas_from_url(url)
+                            print(f"✅ Successfully extracted {len(url_ideas)} keywords from {url}")
+                            ideas.extend(url_ideas)
+                        except Exception as url_error:
+                            print(f"❌ Failed to process URL {url}: {url_error}")
+                            if args.verbose:
+                                import traceback
+                                traceback.print_exc()
+                            # Continue with other URLs
+                            continue
+                else:
+                    # Keyword-only input (original functionality)
+                    print(f"🎯 Processing keyword-only input...")
+                    ideas = researcher.get_keyword_ideas(keywords)
+
+                print(f"📊 Total keyword ideas collected: {len(ideas)}")
+
+                if len(ideas) == 0:
+                    print("⚠️  No keyword ideas were found.")
+                    print("💡 This could be due to:")
+                    print("   - URLs that are not accessible or have insufficient content")
+                    print("   - Keywords that don't generate related ideas")
+                    print("   - API limitations or account restrictions")
+                    output = "No keyword ideas found."
+                else:
+                    if args.format == 'json':
+                        output = json.dumps(ideas, indent=2)
+                    else:
+                        output = _format_research_table(ideas)
+
+            except Exception as research_error:
+                print(f"❌ Research failed with error: {research_error}")
+                if args.verbose:
+                    import traceback
+                    traceback.print_exc()
+                return 1
         
         # Handle output
         if args.output:
@@ -214,22 +305,57 @@ def _format_research_table(ideas):
     """Format research results as a table."""
     if not ideas:
         return "No keyword ideas found."
-    
+
     lines = []
     lines.append("🔬 KEYWORD RESEARCH RESULTS")
     lines.append("=" * 80)
-    
-    # Sort by search volume
-    sorted_ideas = sorted(ideas, key=lambda x: x['avg_monthly_searches'], reverse=True)
-    
-    for idea in sorted_ideas[:25]:  # Show top 25
-        low_bid = idea['low_top_bid_micros'] / 1_000_000
-        high_bid = idea['high_top_bid_micros'] / 1_000_000
-        
-        lines.append(f"\n🔍 {idea['keyword']}")
-        lines.append(f"   Volume: {idea['avg_monthly_searches']:,}/month | Competition: {idea['competition']} ({idea['competition_index']}/100)")
-        lines.append(f"   Bid Range: ${low_bid:.2f} - ${high_bid:.2f}")
-    
+
+    # Group by source type if available
+    url_ideas = [idea for idea in ideas if idea.get('source_url') or idea.get('source_type') == 'url']
+    keyword_ideas = [idea for idea in ideas if idea.get('source_type') == 'keyword' or (not idea.get('source_url') and not idea.get('source_type'))]
+
+    # Show URL-sourced keywords first
+    if url_ideas:
+        lines.append("\n🌐 KEYWORDS FROM COMPETITOR URLs:")
+        lines.append("-" * 50)
+
+        # Group by source URL
+        url_groups = {}
+        for idea in url_ideas:
+            url = idea.get('source_url', 'Unknown URL')
+            if url not in url_groups:
+                url_groups[url] = []
+            url_groups[url].append(idea)
+
+        for url, url_keywords in url_groups.items():
+            lines.append(f"\n📍 Source: {url}")
+            sorted_url_keywords = sorted(url_keywords, key=lambda x: x['avg_monthly_searches'], reverse=True)
+
+            for idea in sorted_url_keywords[:15]:  # Show top 15 per URL
+                low_bid = idea['low_top_bid_micros'] / 1_000_000
+                high_bid = idea['high_top_bid_micros'] / 1_000_000
+
+                lines.append(f"   🔍 {idea['keyword']}")
+                lines.append(f"      Volume: {idea['avg_monthly_searches']:,}/month | Competition: {idea['competition']} ({idea['competition_index']}/100)")
+                lines.append(f"      Bid Range: ${low_bid:.2f} - ${high_bid:.2f}")
+
+    # Show keyword-sourced ideas
+    if keyword_ideas:
+        if url_ideas:
+            lines.append("\n" + "=" * 80)
+        lines.append("\n🎯 KEYWORDS FROM SEED KEYWORDS:")
+        lines.append("-" * 50)
+
+        sorted_keyword_ideas = sorted(keyword_ideas, key=lambda x: x['avg_monthly_searches'], reverse=True)
+
+        for idea in sorted_keyword_ideas[:25]:  # Show top 25
+            low_bid = idea['low_top_bid_micros'] / 1_000_000
+            high_bid = idea['high_top_bid_micros'] / 1_000_000
+
+            lines.append(f"\n🔍 {idea['keyword']}")
+            lines.append(f"   Volume: {idea['avg_monthly_searches']:,}/month | Competition: {idea['competition']} ({idea['competition_index']}/100)")
+            lines.append(f"   Bid Range: ${low_bid:.2f} - ${high_bid:.2f}")
+
     return "\n".join(lines)
 
 
