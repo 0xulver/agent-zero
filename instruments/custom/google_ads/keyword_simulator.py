@@ -124,7 +124,7 @@ Examples:
             if urls:
                 researcher = KeywordResearcher(customer_id)
                 for url in urls:
-                    url_keywords = researcher.get_keyword_ideas_from_url(url)
+                    url_keywords = researcher.get_keyword_ideas_from_url(url, verbose=args.verbose)
                     all_keywords.extend([kw['keyword'] for kw in url_keywords])
 
             results = simulator.simulate_keywords_from_list(all_keywords)
@@ -142,7 +142,7 @@ Examples:
             if urls:
                 researcher = KeywordResearcher(customer_id)
                 for url in urls:
-                    url_keywords = researcher.get_keyword_ideas_from_url(url)
+                    url_keywords = researcher.get_keyword_ideas_from_url(url, verbose=args.verbose)
                     all_keywords.extend([kw['keyword'] for kw in url_keywords])
 
             if all_keywords:
@@ -164,7 +164,7 @@ Examples:
             if urls:
                 researcher = KeywordResearcher(customer_id)
                 for url in urls:
-                    url_keywords = researcher.get_keyword_ideas_from_url(url)
+                    url_keywords = researcher.get_keyword_ideas_from_url(url, verbose=args.verbose)
                     all_keywords.extend([kw['keyword'] for kw in url_keywords])
 
             opportunities = simulator.find_opportunity_keywords(
@@ -181,14 +181,13 @@ Examples:
                 print("❌ No keywords or URLs provided. Use --keywords-file or --keywords")
                 return 1
 
-            print(f"🔬 Starting keyword research...")
-            if keywords:
-                print(f"📝 Keywords provided: {len(keywords)} keywords")
-                if args.verbose:
+            if args.verbose:
+                print(f"🔬 Starting keyword research...")
+                if keywords:
+                    print(f"📝 Keywords provided: {len(keywords)} keywords")
                     print(f"   Keywords: {keywords}")
-            if urls:
-                print(f"🌐 URLs provided: {len(urls)} URLs")
-                if args.verbose:
+                if urls:
+                    print(f"🌐 URLs provided: {len(urls)} URLs")
                     print(f"   URLs: {urls}")
 
             researcher = KeywordResearcher(customer_id)
@@ -197,16 +196,20 @@ Examples:
             try:
                 if keywords and urls:
                     # Mixed input: both keywords and URLs
-                    print(f"🔄 Processing mixed input (keywords + URLs)...")
-                    ideas = researcher.get_keyword_ideas_mixed(keywords, urls)
+                    if args.verbose:
+                        print(f"🔄 Processing mixed input (keywords + URLs)...")
+                    ideas = researcher.get_keyword_ideas_mixed(keywords, urls, verbose=args.verbose)
                 elif urls:
                     # URL-only input
-                    print(f"🌐 Processing URL-only input...")
+                    if args.verbose:
+                        print(f"🌐 Processing URL-only input...")
                     for i, url in enumerate(urls, 1):
-                        print(f"🔍 Processing URL {i}/{len(urls)}: {url}")
+                        if args.verbose:
+                            print(f"🔍 Processing URL {i}/{len(urls)}: {url}")
                         try:
-                            url_ideas = researcher.get_keyword_ideas_from_url(url)
-                            print(f"✅ Successfully extracted {len(url_ideas)} keywords from {url}")
+                            url_ideas = researcher.get_keyword_ideas_from_url(url, verbose=args.verbose)
+                            if args.verbose:
+                                print(f"✅ Successfully extracted {len(url_ideas)} keywords from {url}")
                             ideas.extend(url_ideas)
                         except Exception as url_error:
                             print(f"❌ Failed to process URL {url}: {url_error}")
@@ -217,17 +220,20 @@ Examples:
                             continue
                 else:
                     # Keyword-only input (original functionality)
-                    print(f"🎯 Processing keyword-only input...")
+                    if args.verbose:
+                        print(f"🎯 Processing keyword-only input...")
                     ideas = researcher.get_keyword_ideas(keywords)
 
-                print(f"📊 Total keyword ideas collected: {len(ideas)}")
+                if args.verbose:
+                    print(f"📊 Total keyword ideas collected: {len(ideas)}")
 
                 if len(ideas) == 0:
                     print("⚠️  No keyword ideas were found.")
-                    print("💡 This could be due to:")
-                    print("   - URLs that are not accessible or have insufficient content")
-                    print("   - Keywords that don't generate related ideas")
-                    print("   - API limitations or account restrictions")
+                    if args.verbose:
+                        print("💡 This could be due to:")
+                        print("   - URLs that are not accessible or have insufficient content")
+                        print("   - Keywords that don't generate related ideas")
+                        print("   - API limitations or account restrictions")
                     output = "No keyword ideas found."
                 else:
                     if args.format == 'json':

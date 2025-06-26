@@ -67,21 +67,26 @@ class KeywordResearcher:
             raise RuntimeError(f"Failed to get keyword ideas: {e}")
 
     def get_keyword_ideas_from_url(self, url: str, language: str = "en",
-                                  country: str = "US") -> List[Dict[str, Any]]:
+                                  country: str = "US", verbose: bool = False) -> List[Dict[str, Any]]:
         """Get keyword ideas from a competitor URL using KeywordPlanIdeaService."""
-        print(f"🌐 DEBUG: Starting URL keyword research for: {url}")
+        if verbose:
+            print(f"🌐 DEBUG: Starting URL keyword research for: {url}")
 
         try:
-            print(f"🔧 DEBUG: Getting KeywordPlanIdeaService...")
+            if verbose:
+                print(f"🔧 DEBUG: Getting KeywordPlanIdeaService...")
             keyword_plan_idea_service = self.client.get_service("KeywordPlanIdeaService")
 
-            print(f"🔧 DEBUG: Creating UrlSeed for URL: {url}")
+            if verbose:
+                print(f"🔧 DEBUG: Creating UrlSeed for URL: {url}")
             # Create URL seed
             url_seed = self.client.get_type("UrlSeed")
             url_seed.url = url
-            print(f"🔧 DEBUG: UrlSeed created successfully")
+            if verbose:
+                print(f"🔧 DEBUG: UrlSeed created successfully")
 
-            print(f"🔧 DEBUG: Creating GenerateKeywordIdeasRequest...")
+            if verbose:
+                print(f"🔧 DEBUG: Creating GenerateKeywordIdeasRequest...")
             # Create request
             request = self.client.get_type("GenerateKeywordIdeasRequest")
             request.customer_id = self.customer_id
@@ -91,31 +96,36 @@ class KeywordResearcher:
             request.include_adult_keywords = False
             request.page_size = 1000
 
-            print(f"🔧 DEBUG: Request created. Customer ID: {self.customer_id}")
-            print(f"🔧 DEBUG: Language: languageConstants/1000")
-            print(f"🔧 DEBUG: Geo target: geoTargetConstants/2840")
-            print(f"🔧 DEBUG: Page size: 1000")
-            print(f"🔧 DEBUG: Include adult keywords: False")
+            if verbose:
+                print(f"🔧 DEBUG: Request created. Customer ID: {self.customer_id}")
+                print(f"🔧 DEBUG: Language: languageConstants/1000")
+                print(f"🔧 DEBUG: Geo target: geoTargetConstants/2840")
+                print(f"🔧 DEBUG: Page size: 1000")
+                print(f"🔧 DEBUG: Include adult keywords: False")
 
-            print(f"🚀 DEBUG: Executing API request...")
+            if verbose:
+                print(f"🚀 DEBUG: Executing API request...")
             # Execute request
             response = keyword_plan_idea_service.generate_keyword_ideas(request=request)
 
-            print(f"✅ DEBUG: API request completed successfully")
-            print(f"📊 DEBUG: Response received with {len(response.results)} results")
+            if verbose:
+                print(f"✅ DEBUG: API request completed successfully")
+                print(f"📊 DEBUG: Response received with {len(response.results)} results")
 
             if len(response.results) == 0:
-                print(f"⚠️  DEBUG: No keyword ideas returned for URL: {url}")
-                print(f"⚠️  DEBUG: This could mean:")
-                print(f"   - The URL is not accessible to Google's crawlers")
-                print(f"   - The website has insufficient content for keyword extraction")
-                print(f"   - The website blocks automated access")
-                print(f"   - The URL format is not supported")
+                if verbose:
+                    print(f"⚠️  DEBUG: No keyword ideas returned for URL: {url}")
+                    print(f"⚠️  DEBUG: This could mean:")
+                    print(f"   - The URL is not accessible to Google's crawlers")
+                    print(f"   - The website has insufficient content for keyword extraction")
+                    print(f"   - The website blocks automated access")
+                    print(f"   - The URL format is not supported")
                 return []
 
             results = []
             for i, idea in enumerate(response.results):
-                print(f"🔍 DEBUG: Processing keyword {i+1}/{len(response.results)}: {idea.text}")
+                if verbose and i < 10:  # Only show first 10 in verbose mode to avoid spam
+                    print(f"🔍 DEBUG: Processing keyword {i+1}/{len(response.results)}: {idea.text}")
 
                 metrics = idea.keyword_idea_metrics
 
@@ -131,28 +141,30 @@ class KeywordResearcher:
 
                 results.append(keyword_data)
 
-            print(f"✅ DEBUG: Successfully processed {len(results)} keyword ideas from URL")
+            if verbose:
+                print(f"✅ DEBUG: Successfully processed {len(results)} keyword ideas from URL")
             return results
 
         except Exception as e:
-            print(f"❌ DEBUG: Exception occurred in get_keyword_ideas_from_url:")
-            print(f"❌ DEBUG: Exception type: {type(e).__name__}")
-            print(f"❌ DEBUG: Exception message: {str(e)}")
+            if verbose:
+                print(f"❌ DEBUG: Exception occurred in get_keyword_ideas_from_url:")
+                print(f"❌ DEBUG: Exception type: {type(e).__name__}")
+                print(f"❌ DEBUG: Exception message: {str(e)}")
 
-            # Try to get more detailed error information
-            if hasattr(e, 'details'):
-                print(f"❌ DEBUG: Exception details: {e.details}")
-            if hasattr(e, 'code'):
-                print(f"❌ DEBUG: Exception code: {e.code}")
+                # Try to get more detailed error information
+                if hasattr(e, 'details'):
+                    print(f"❌ DEBUG: Exception details: {e.details}")
+                if hasattr(e, 'code'):
+                    print(f"❌ DEBUG: Exception code: {e.code}")
 
-            import traceback
-            print(f"❌ DEBUG: Full traceback:")
-            traceback.print_exc()
+                import traceback
+                print(f"❌ DEBUG: Full traceback:")
+                traceback.print_exc()
 
             raise RuntimeError(f"Failed to get keyword ideas from URL '{url}': {e}")
 
     def get_keyword_ideas_mixed(self, seed_keywords: List[str] = None, urls: List[str] = None,
-                               language: str = "en", country: str = "US") -> List[Dict[str, Any]]:
+                               language: str = "en", country: str = "US", verbose: bool = False) -> List[Dict[str, Any]]:
         """Get keyword ideas from both keywords and URLs."""
         all_results = []
 
@@ -164,7 +176,7 @@ class KeywordResearcher:
 
         if urls:
             for url in urls:
-                url_results = self.get_keyword_ideas_from_url(url, language, country)
+                url_results = self.get_keyword_ideas_from_url(url, language, country, verbose)
                 for result in url_results:
                     result['source_type'] = 'url'
                 all_results.extend(url_results)
